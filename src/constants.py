@@ -95,6 +95,7 @@ AVOIDANCE_LOOKAHEAD_TIME = 0.5  # Seconds to look ahead for obstacles
 
 # UI / Font
 UI_FONT_SIZE = 16
+UI_TEXT_COLOR = WHITE # Add definition for UI text color
 # UI_FONT = pygame.font.SysFont(None, UI_FONT_SIZE) # Use None for default font
 
 # --- Gameplay & Physics ---

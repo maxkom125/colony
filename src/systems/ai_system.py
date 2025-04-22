@@ -1,17 +1,14 @@
-# from . import entities # Old import
 # Import specific entity classes needed
-from .entities.asteroid import Asteroid
-from .entities.planet import Planet
-from .entities.ships.scanner_ship import ScannerShip
-from .entities.ships.mining_ship import MiningShip
-from . import utils
+from ..entities.asteroid import Asteroid
+from ..entities.planet import Planet
+from ..entities.ships.scanner_ship import ScannerShip
+from ..entities.ships.mining_ship import MiningShip
+from .. import utils
+from ..enums import ShipState # Import the enum
 
 
 def assign_scanner_task(scanner: ScannerShip, asteroids: list[Asteroid]):
     """Finds the nearest unscanned asteroid and assigns it to the scanner."""
-    # No need for isinstance check if type hint is correct
-    # if not isinstance(scanner, ScannerShip):
-    #     return
 
     def scanner_filter(asteroid):
         # Check type just in case list contains other things
@@ -30,10 +27,6 @@ def assign_miner_task(miner: MiningShip, asteroids: list[Asteroid], planet: Plan
     """Finds the nearest scanned asteroid with resources OR returns to planet if full/no targets.
     Assigns the found target to the miner.
     """
-    # No need for isinstance check if type hint is correct
-    # if not isinstance(miner, MiningShip):
-    #     return
-
     # Priority 1: Return to base if cargo is full
     if miner.get_cargo_total() >= miner.cargo_capacity:
         miner.set_target(planet)
@@ -58,4 +51,4 @@ def assign_miner_task(miner: MiningShip, asteroids: list[Asteroid], planet: Plan
             miner.set_target(planet)
             # print(f"DEBUG: No suitable asteroids. Miner returning to Planet with cargo.")
         # else: Miner is idle, empty, and no targets - stays idle
-        # print(f"DEBUG: No suitable asteroids and empty cargo. Miner remains idle.")
+        # print(f"DEBUG: No suitable asteroids and empty cargo. Miner remains idle.") 

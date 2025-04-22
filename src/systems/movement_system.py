@@ -1,14 +1,13 @@
 import math
 from pygame.math import Vector2  # Import Vector2
-from . import constants
-from . import utils
+from .. import constants
+from .. import utils
 
-# from . import entities # Old import
 # Import specific entity classes needed for type hints / isinstance checks
-from .entities.planet import Planet
-from .entities.asteroid import Asteroid
-from .entities.ships.base_ship import Spaceship
-
+from ..entities.planet import Planet
+from ..entities.asteroid import Asteroid
+from ..entities.ships.base_ship import Spaceship
+from ..enums import ShipState # Import the enum
 
 def update_ship_movement(ship: Spaceship, dt, obstacles: list):
     """Calculates the ship's new position and angle based on its target and obstacles.
@@ -30,8 +29,6 @@ def update_ship_movement(ship: Spaceship, dt, obstacles: list):
     elif isinstance(ship.target, Planet):
         target_pos_vec = ship.target.position
         # Arrive near planet edge + buffer.
-        # OLD: arrival_threshold = ship.target.radius + ship.size * 0.5 + constants.ARRIVAL_DISTANCE_BUFFER
-        # NEW: Simplify - just use planet radius + double buffer for easier arrival
         arrival_threshold = ship.target.radius + constants.ARRIVAL_DISTANCE_BUFFER * 2
         target_obstacle_to_ignore = (
             ship.target
@@ -132,4 +129,4 @@ def update_ship_movement(ship: Spaceship, dt, obstacles: list):
         new_angle = ship.angle  # Keep the current angle
 
     # Return new position (Vector2), new angle, and arrival status (False)
-    return new_pos_vec, new_angle, False
+    return new_pos_vec, new_angle, False 

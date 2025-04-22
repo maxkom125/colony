@@ -1,0 +1,1 @@
+# Mark camera as a package 

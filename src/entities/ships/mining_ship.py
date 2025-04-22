@@ -5,6 +5,7 @@ from .base_ship import Spaceship  # Inherit from base
 from ... import constants  # Relative import
 from ..asteroid import Asteroid  # Need these for type hints/checks
 from ..planet import Planet
+from ...enums import ShipState # Import the enum
 
 
 class MiningShip(Spaceship):
@@ -13,17 +14,17 @@ class MiningShip(Spaceship):
             position, constants.MINING_SHIP_SIZE, constants.MINING_SHIP_COLOR, angle
         )
         self.cargo_capacity = constants.MINING_SHIP_CARGO_CAPACITY
-        self.state = "idle"  # Explicitly start idle
+        self.state = ShipState.IDLE # Use Enum
 
     def update_actions(self, dt, planet=None):
         # Handle mining and dumping timers
-        if self.state == "mining":
+        if self.state == ShipState.MINING: # Use Enum
             if not self.target or not isinstance(self.target, Asteroid):
-                self.state = "idle"
+                self.state = ShipState.IDLE # Use Enum
                 return
 
             self.mining_timer -= dt
-            mined_this_tick = constants.MINING_RATE * dt  # Use MINING_RATE constant
+            mined_this_tick = constants.MINING_RATE * dt
 
             dominant_res = next(
                 (res for res, amount in self.target.resources.items() if amount > 0),
@@ -32,9 +33,9 @@ class MiningShip(Spaceship):
 
             if not dominant_res:
                 if planet:
-                    self.set_target(planet)
+                    self.set_target(planet) # Will set state to RETURNING_TO_BASE
                 else:
-                    self.state = "idle"
+                    self.state = ShipState.IDLE # Use Enum
                 return
 
             actual_mined = min(mined_this_tick, self.target.resources[dominant_res])
@@ -51,14 +52,14 @@ class MiningShip(Spaceship):
 
             if cargo_full or asteroid_depleted or time_up:
                 if planet:
-                    self.set_target(planet)
+                    self.set_target(planet) # Will set state to RETURNING_TO_BASE
                 else:
-                    self.state = "idle"
+                    self.state = ShipState.IDLE # Use Enum
 
-        elif self.state == "dumping":
+        elif self.state == ShipState.DUMPING: # Use Enum
             if not planet:
                 print("ERROR: Cannot dump without planet reference!")
-                self.state = "idle"
+                self.state = ShipState.IDLE # Use Enum
                 return
 
             self.dumping_timer -= dt
@@ -74,10 +75,10 @@ class MiningShip(Spaceship):
                             )
                         total_dumped += amount
                         self.cargo[res_type] = 0
-                self.state = "idle"
+                self.state = ShipState.IDLE # Use Enum
 
     def handle_arrival(self, planet):
-        if self.state == "moving_to_asteroid" and isinstance(self.target, Asteroid):
+        if self.state == ShipState.MOVING_TO_ASTEROID and isinstance(self.target, Asteroid): # Use Enum
             if self.target.scanned:
                 dominant_res = next(
                     (
@@ -88,25 +89,28 @@ class MiningShip(Spaceship):
                     None,
                 )
                 if dominant_res and self.get_cargo_total() < self.cargo_capacity:
-                    self.state = "mining"
-                    self.mining_timer = (
-                        constants.MINING_DURATION
-                    )  # Use MINING_DURATION constant
+                    self.state = ShipState.MINING # Use Enum
+                    self.mining_timer = constants.MINING_DURATION
                 else:
-                    self.set_target(planet)
+                    # Asteroid depleted or cargo full, return to base
+                    self.set_target(planet) # Will set state to RETURNING_TO_BASE
             else:
-                self.state = "idle"
+                # Arrived at unscanned asteroid
+                self.state = ShipState.IDLE # Use Enum
+                self.target = None # Clear target
 
-        elif self.state == "returning_to_base" and isinstance(self.target, Planet):
+        elif self.state == ShipState.RETURNING_TO_BASE and isinstance(self.target, Planet): # Use Enum
             if self.get_cargo_total() > 0:
-                self.state = "dumping"
+                self.state = ShipState.DUMPING # Use Enum
                 self.dumping_timer = constants.DUMPING_DURATION
             else:
-                self.state = "idle"
+                # Arrived at base empty
+                self.state = ShipState.IDLE # Use Enum
+                self.target = None # Clear target
         else:
             # Arrived while in a non-moving state? Go idle.
-            self.state = "idle"
-            self.target = None
+            self.state = ShipState.IDLE # Use Enum
+            self.target = None # Clear target
 
     def draw(self, surface, world_to_screen_func, zoom_level):
         # Override draw method for a different shape

@@ -5,6 +5,7 @@ from pygame.math import Vector2
 from ... import constants  # Relative import
 from ..asteroid import Asteroid  # Need these for type hints/checks
 from ..planet import Planet
+from ...enums import ShipState # Import the enum
 
 
 class Spaceship:
@@ -15,7 +16,7 @@ class Spaceship:
         self.angle = angle
         self.speed = constants.SHIP_SPEED
         self.target = None
-        self.state = "idle"
+        self.state = ShipState.IDLE # Use Enum for initial state
         self.scan_timer = 0.0
         self.mining_timer = 0.0
         self.dumping_timer = 0.0
@@ -25,18 +26,18 @@ class Spaceship:
     def set_target(self, target_entity):
         self.target = target_entity
         if not target_entity:
-            self.state = "idle"
+            self.state = ShipState.IDLE # Use Enum
             return
 
         if isinstance(target_entity, Asteroid):
-            self.state = "moving_to_asteroid"
+            self.state = ShipState.MOVING_TO_ASTEROID # Use Enum
         elif isinstance(target_entity, Planet):
-            self.state = "returning_to_base"
+            self.state = ShipState.RETURNING_TO_BASE # Use Enum
         else:
             print(
                 f"WARNING: Unknown target type {type(target_entity)}. Ship going idle."
             )
-            self.state = "idle"
+            self.state = ShipState.IDLE # Use Enum
 
         self.scan_timer = 0.0
         self.mining_timer = 0.0
@@ -54,7 +55,7 @@ class Spaceship:
     def handle_arrival(self, planet):
         # Base arrival logic: typically just go idle unless overridden
         # print(f"DEBUG: Base ship arrived at {self.target}. Going idle.")
-        self.state = "idle"
+        self.state = ShipState.IDLE # Use Enum
         self.target = None  # Clear target on arrival if just idling
 
     def draw(self, surface, world_to_screen_func, zoom_level):

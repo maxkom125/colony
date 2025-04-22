@@ -12,43 +12,27 @@ from src.entities.planet import Planet
 from src.entities.asteroid import Asteroid
 from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
+# Import the enum
+from src.enums import ShipState
 
 # from src.utils import find_nearest_asteroid # No longer needed here directly
 # Import system modules
-from src import ai_systems
-from src import movement_system
+from src.systems import ai_system # Import from new location
+from src.systems import movement_system # Import from new location
+from src import hud # Import the renamed hud module
+from src.rendering import renderer # Import the new renderer module
+from src.camera.camera import Camera # Import the new Camera class
 
-# --- Global Camera State --- (Moved outside main)
-# We need these accessible by the helper functions
-camera_offset = Vector2(0, 0)
-zoom_level = 1.0
+# --- Global Camera State --- (REMOVED)
+# camera_offset = Vector2(0, 0)
+# zoom_level = 1.0
 
+# from src.enums import ShipState # Keep this import
 
-# --- Helper Functions --- (Moved outside main)
-def world_to_screen(pos_vec: Vector2) -> Vector2:
-    """Converts world coordinates (Vector2) to screen coordinates."""
-    # Use global camera state
-    screen_x = (pos_vec.x - camera_offset.x) * zoom_level + constants.SCREEN_WIDTH / 2
-    screen_y = (pos_vec.y - camera_offset.y) * zoom_level + constants.SCREEN_HEIGHT / 2
-    return Vector2(
-        int(screen_x), int(screen_y)
-    )  # Return Vector2 with integer coords for drawing
-
-
-def screen_to_world(screen_pos_vec: Vector2) -> Vector2:
-    """Converts screen coordinates (Vector2) to world coordinates."""
-    # Use global camera state
-    world_x = (
-        screen_pos_vec.x - constants.SCREEN_WIDTH / 2
-    ) / zoom_level + camera_offset.x
-    world_y = (
-        screen_pos_vec.y - constants.SCREEN_HEIGHT / 2
-    ) / zoom_level + camera_offset.y
-    return Vector2(world_x, world_y)
-
+# --- Helper Functions --- (REMOVED)
 
 def main():
-    global camera_offset, zoom_level  # Declare usage of global camera variables
+    # global camera_offset, zoom_level  # REMOVED Globals
 
     # Initialize Pygame
     pygame.init()
@@ -78,11 +62,10 @@ def main():
     # Clock for controlling frame rate
     clock = pygame.time.Clock()
 
-    # Initialize Camera state (set initial offset based on screen size)
-    camera_offset = Vector2(0, 0)  # Center world origin (0,0) initially
-    zoom_level = 1.0  # Reset zoom level
+    # --- Create Camera Instance ---
+    camera = Camera()
 
-    # Panning state variables
+    # Initialize Panning state variables (these are local to main loop)
     panning = False
     pan_start_pos = None
 
@@ -172,23 +155,19 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False  # Allow exiting fullscreen with ESC
             elif event.type == pygame.MOUSEWHEEL:
-                # Zoom logic needs to update global zoom_level and adjust camera_offset
+                # Delegate zoom handling to camera object
                 zoom_direction = event.y
-                if zoom_direction == 0:
-                    continue
-
-                old_zoom_level = zoom_level
-                mouse_world_pos_before = screen_to_world(mouse_pos_vec)
-
-                # Apply zoom
-                if zoom_direction > 0:
-                    zoom_level = min(constants.MAX_ZOOM, zoom_level * 1.1)
-                else:
-                    zoom_level = max(constants.MIN_ZOOM, zoom_level * 0.9)
-
-                # Adjust camera offset to keep mouse world position fixed
-                mouse_world_pos_after = screen_to_world(mouse_pos_vec)
-                camera_offset += mouse_world_pos_before - mouse_world_pos_after
+                camera.handle_zoom(zoom_direction, mouse_pos_vec)
+                # Remove old zoom logic:
+                # old_zoom_level = zoom_level
+                # def screen_to_world_local(screen_pos_vec: Vector2) -> Vector2:
+                #     ...
+                # mouse_world_pos_before = screen_to_world_local(mouse_pos_vec)
+                # ... apply zoom ...
+                # def screen_to_world_local_after(screen_pos_vec: Vector2) -> Vector2:
+                #     ...
+                # mouse_world_pos_after = screen_to_world_local_after(mouse_pos_vec)
+                # camera_offset += mouse_world_pos_before - mouse_world_pos_after
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 2:  # Right-click for panning
@@ -200,10 +179,12 @@ def main():
                     pan_start_pos = None
             elif event.type == pygame.MOUSEMOTION and panning and pan_start_pos:
                 pan_delta_screen = mouse_pos_vec - pan_start_pos
-                # Convert screen delta to world delta (independent of zoom)
-                pan_delta_world = pan_delta_screen / zoom_level
-                camera_offset -= pan_delta_world  # Move camera opposite to mouse drag
-                pan_start_pos = mouse_pos_vec  # Update pan start for next motion event
+                # Delegate panning to camera object
+                camera.handle_pan(pan_delta_screen)
+                pan_start_pos = mouse_pos_vec # Update pan start for next motion event
+                # Remove old pan logic:
+                # pan_delta_world = pan_delta_screen / zoom_level
+                # camera_offset -= pan_delta_world
 
         # --- Prepare Data for Systems ---
         # Obstacles are the list of Asteroid objects + the Planet
@@ -213,26 +194,23 @@ def main():
 
         # 1. AI Phase (Assign Tasks to Idle Ships)
         for ship in ships:
-            if ship.state == "idle":
+            if ship.state == ShipState.IDLE: # Use Enum
                 # Use isinstance to check ship type for task assignment
                 if isinstance(ship, MiningShip):
-                    ai_systems.assign_miner_task(
+                    ai_system.assign_miner_task( # Use new module name
                         ship, asteroids, central_planet
                     )  # Pass planet
                 elif isinstance(ship, ScannerShip):
-                    ai_systems.assign_scanner_task(ship, asteroids)
+                    ai_system.assign_scanner_task(ship, asteroids) # Use new module name
                 # else: # Handle other potential ship types later
                 #     pass
 
         # 2. Movement Phase (Update Position/Angle for Moving Ships)
         for ship in ships:
-            if ship.state in ["moving_to_asteroid", "returning_to_base"]:
+            # Check state using Enum members
+            if ship.state in [ShipState.MOVING_TO_ASTEROID, ShipState.RETURNING_TO_BASE]:
                 # Call movement system to calculate next step
-                # Note: Passing obstacles_data for now, will be refined later
-                #       to pass simpler data structure as per TODO.
-                # Note: movement_system currently determines target_pos and arrival_threshold
-                #       based on ship.target. This will be decoupled later.
-                new_pos_vec, new_angle, arrived = movement_system.update_ship_movement(
+                new_pos_vec, new_angle, arrived = movement_system.update_ship_movement( # Use new module name
                     ship, dt, obstacles
                 )
                 # Apply results using Vector2
@@ -250,57 +228,27 @@ def main():
             ship.update_actions(dt, central_planet)  # Pass planet for dumping
 
         # --- Drawing Phase ---
-        screen.fill(constants.BLACK)
+        # Call the main drawing function from the renderer module
+        # Pass the camera object instead of offset/zoom
+        renderer.draw_frame(
+            screen,
+            ui_font,
+            camera, # Pass camera object
+            # camera_offset, # Removed
+            # zoom_level, # Removed
+            central_planet,
+            asteroids,
+            ships,
+            stars
+        )
 
-        # Draw background stars (Use world_to_screen)
-        for star_pos, star_radius in stars:
-            screen_pos = world_to_screen(star_pos)  # Convert world pos to screen pos
-            scaled_radius = max(
-                1, int(star_radius * zoom_level)
-            )  # Scale radius by zoom
-            # Basic culling: Check if the scaled circle is within screen bounds
-            if (
-                -scaled_radius < screen_pos.x < constants.SCREEN_WIDTH + scaled_radius
-                and -scaled_radius
-                < screen_pos.y
-                < constants.SCREEN_HEIGHT + scaled_radius
-            ):
-                pygame.draw.circle(
-                    screen, constants.STAR_COLOR, screen_pos, scaled_radius
-                )  # Draw using int screen coords
-
-        # Draw game elements using world_to_screen
-        central_planet.draw(screen, world_to_screen, zoom_level)
-        for asteroid in asteroids:
-            asteroid.draw(screen, world_to_screen, zoom_level, ui_font)
-        for ship in ships:
-            ship.draw(screen, world_to_screen, zoom_level)
-            # Draw target line using world_to_screen
-            if ship.target:
-                # Ensure target has position attribute (Planet or Asteroid)
-                if hasattr(ship.target, "position"):
-                    start_screen = world_to_screen(ship.position)
-                    end_screen = world_to_screen(ship.target.position)
-                    pygame.draw.line(
-                        screen, constants.TARGET_LINE_COLOR, start_screen, end_screen, 1
-                    )
-
-        # Draw UI
-        # ... (UI drawing logic remains the same) ...
-        storage_y_offset = 10
-        for resource_type, amount in central_planet.storage.items():
-            color = constants.WHITE
-            if resource_type == "Tritanium":
-                color = constants.TRITANIUM_COLOR
-            elif resource_type == "Credits":
-                color = constants.CREDITS_COLOR
-            elif resource_type == "Plasma":
-                color = constants.PLASMA_COLOR
-            text = f"{resource_type}: {int(amount)}"
-            text_surface = ui_font.render(text, True, color)
-            text_rect = text_surface.get_rect(topleft=(10, storage_y_offset))
-            screen.blit(text_surface, text_rect)
-            storage_y_offset += 20
+        # --- Draw HUD using functions from hud module ---
+        # HUD is drawn *after* the world frame
+        hud.draw_planet_storage(screen, central_planet, ui_font)
+        hud.draw_ship_statuses(screen, ships, ui_font)
+        # Pass camera object to draw_zoom_level
+        hud.draw_zoom_level(screen, camera, ui_font)
+        # hud.draw_zoom_level(screen, zoom_level, ui_font) # Old call
 
         # Update Display
         pygame.display.flip()
