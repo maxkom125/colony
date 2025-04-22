@@ -9,8 +9,13 @@ class Planet:
         self.position = position
         self.radius = radius
         self.color = color
-        # Initialize storage for resources
-        self.storage = {res_type: 0 for res_type in constants.RESOURCE_TYPES}
+        # Initialize storage with starting resources
+        self.storage = {
+            "Tritanium": 200, 
+            "Credits": 200, 
+            "Plasma": 50
+            } 
+        # {res_type: 0 for res_type in constants.RESOURCE_TYPES} # Old initialization
 
     def draw(self, surface, world_to_screen_func, zoom_level):
         screen_pos = world_to_screen_func(self.position)
@@ -22,3 +27,4 @@ class Planet:
         pygame.draw.circle(
             surface, self.color, (int(screen_pos.x), int(screen_pos.y)), screen_radius
         )
+ 

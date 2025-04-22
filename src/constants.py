@@ -103,3 +103,9 @@ ARRIVAL_DISTANCE_BUFFER = 5  # World units buffer for arrival checks
 EPSILON = 1e-6  # Small value for float comparisons
 EPSILON_SQ = EPSILON * EPSILON  # Epsilon squared for distance comparisons
 TARGET_LINE_COLOR = (255, 255, 0)  # Yellow for target lines
+
+# --- Construction Costs ---
+SCANNER_COST_TRITANIUM = 50
+SCANNER_COST_CREDITS = 100
+MINING_SHIP_COST_TRITANIUM = 100
+MINING_SHIP_COST_CREDITS = 50

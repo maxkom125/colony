@@ -96,3 +96,4 @@ class Asteroid:
                 center=(int(screen_pos.x), int(screen_pos.y + screen_radius + 10))
             )
             surface.blit(text_surface, text_rect)
+ 

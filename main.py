@@ -29,7 +29,11 @@ from src.camera.camera import Camera # Import the new Camera class
 
 # from src.enums import ShipState # Keep this import
 
-# --- Helper Functions --- (REMOVED)
+# --- Helper Functions ---
+# (Coordinate helpers moved to renderer.py)
+
+# --- Game Logic Helpers (Defined within main scope or separate module) ---
+# (try_build_ship moved inside main())
 
 def main():
     # global camera_offset, zoom_level  # REMOVED Globals
@@ -64,6 +68,59 @@ def main():
 
     # --- Create Camera Instance ---
     camera = Camera()
+
+    # --- Game State Variables ---
+    mining_priorities = {
+        "Tritanium": 1.0,
+        "Credits": 1.0,
+        "Plasma": 1.0
+    }
+
+    # --- Calculate UI element rects once (using the actual font) ---
+    scanner_button_rect, miner_button_rect = hud.get_construction_button_rects(ui_font)
+
+    # --- Define Build Logic Function (Now inside main) ---
+    def try_build_ship(ship_type, planet, ships_list):
+        """Checks resources and attempts to build a ship near the planet."""
+        cost_tritanium = 0
+        cost_credits = 0
+        ShipClass = None
+
+        if ship_type == "scanner":
+            cost_tritanium = constants.SCANNER_COST_TRITANIUM
+            cost_credits = constants.SCANNER_COST_CREDITS
+            ShipClass = ScannerShip
+        elif ship_type == "miner":
+            cost_tritanium = constants.MINING_SHIP_COST_TRITANIUM
+            cost_credits = constants.MINING_SHIP_COST_CREDITS
+            ShipClass = MiningShip
+        else:
+            print(f"ERROR: Unknown ship type '{ship_type}' to build.")
+            return False
+
+        # Check resources
+        can_afford = (
+            planet.storage.get("Tritanium", 0) >= cost_tritanium
+            and planet.storage.get("Credits", 0) >= cost_credits
+        )
+
+        if can_afford and ShipClass:
+            # Deduct resources
+            planet.storage["Tritanium"] -= cost_tritanium
+            planet.storage["Credits"] -= cost_credits
+
+            # Create ship (slightly offset from planet edge)
+            spawn_angle = random.uniform(0, 2 * math.pi)
+            spawn_dist = planet.radius + 30 # Distance from planet center
+            spawn_pos = planet.position + Vector2(spawn_dist, 0).rotate_rad(spawn_angle)
+            new_ship = ShipClass(position=spawn_pos, angle=spawn_angle + math.pi) # Face away from planet
+
+            ships_list.append(new_ship)
+            print(f"SUCCESS: Built {ship_type} ship! Resources remaining: T={planet.storage['Tritanium']}, C={planet.storage['Credits']}")
+            return True
+        else:
+            print(f"FAILED: Not enough resources to build {ship_type}. Needed T={cost_tritanium}, C={cost_credits}. Have T={planet.storage.get('Tritanium', 0)}, C={planet.storage.get('Credits', 0)}")
+            return False
 
     # Initialize Panning state variables (these are local to main loop)
     panning = False
@@ -170,7 +227,19 @@ def main():
                 # camera_offset += mouse_world_pos_before - mouse_world_pos_after
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 2:  # Right-click for panning
+                if event.button == 1: # Left click
+                    # --- Check for Build Button Clicks ---
+                    if scanner_button_rect.collidepoint(event.pos):
+                        # print("DEBUG: Clicked Build Scanner!")
+                        # Call build logic here
+                        try_build_ship("scanner", central_planet, ships)
+                    elif miner_button_rect.collidepoint(event.pos):
+                        # print("DEBUG: Clicked Build Miner!")
+                        # Call build logic here
+                        try_build_ship("miner", central_planet, ships)
+                    # Add other potential left-click actions here later
+
+                elif event.button == 2:  # Right-click for panning
                     panning = True
                     pan_start_pos = mouse_pos_vec
             elif event.type == pygame.MOUSEBUTTONUP:
@@ -198,8 +267,9 @@ def main():
                 # Use isinstance to check ship type for task assignment
                 if isinstance(ship, MiningShip):
                     ai_system.assign_miner_task( # Use new module name
-                        ship, asteroids, central_planet
-                    )  # Pass planet
+                        ship, asteroids, central_planet,
+                        mining_priorities # Pass the priorities dictionary
+                    )
                 elif isinstance(ship, ScannerShip):
                     ai_system.assign_scanner_task(ship, asteroids) # Use new module name
                 # else: # Handle other potential ship types later
@@ -246,9 +316,10 @@ def main():
         # HUD is drawn *after* the world frame
         hud.draw_planet_storage(screen, central_planet, ui_font)
         hud.draw_ship_statuses(screen, ships, ui_font)
-        # Pass camera object to draw_zoom_level
         hud.draw_zoom_level(screen, camera, ui_font)
-        # hud.draw_zoom_level(screen, zoom_level, ui_font) # Old call
+        hud.draw_construction_buttons(screen, ui_font)
+        # Draw the mining priorities
+        hud.draw_mining_priorities(screen, mining_priorities, ui_font)
 
         # Update Display
         pygame.display.flip()

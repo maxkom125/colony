@@ -79,13 +79,13 @@
 - Dependencies: 11, 12
 
 ## Task ID: 14
-- Status: TODO
+- Status: DONE
 - Description: Define construction costs (Tritanium, Credits) for Scanner and Mining ships.
 - Priority: Medium
 - Dependencies: 5, 6, 9
 
 ## Task ID: 15
-- Status: TODO
+- Status: DONE
 - Description: Implement ship construction mechanism (deduct resources, add ship instance).
 - Priority: Medium
 - Dependencies: 14
@@ -107,3 +107,15 @@
 - Description: Implement resource mining priorities. Add UI sliders (0 to 1, default 1) for Tritanium, Credits, and Plasma. Store these priority values. Modify Mining Ship AI (`find_nearest_asteroid` or a new planning logic) to select target asteroids based on a weighted distribution reflecting these priorities, aiming for a proportional mining intensity/frequency for each resource rather than a strict queue. (Reminder: Discuss implementation details of weighted selection/expedition planning when starting this task).
 - Priority: Medium
 - Dependencies: 10 # Depends on Mining Implementation 
+
+## Task ID: 19
+- Status: TODO
+- Description: Implement unit tests for key components (e.g., Camera coordinate conversion, Planet storage updates, construction/conversion logic, AI target scoring).
+- Priority: High
+- Dependencies: None 
+
+## Task ID: 20
+- Status: TODO
+- Description: Improve Scanner AI: Prevent multiple scanners from targeting the same unscanned asteroid simultaneously. Each scanner should check if an asteroid is already targeted by another scanner before selecting it.
+- Priority: Medium
+- Dependencies: 8 # Depends on basic Scan action/AI 
