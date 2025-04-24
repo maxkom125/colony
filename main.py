@@ -19,6 +19,7 @@ from src.enums import ShipState
 # Import system modules
 from src.systems import ai_system # Import from new location
 from src.systems import movement_system # Import from new location
+from src.systems import construction_system # Import the new construction system
 from src import hud # Import the renamed hud module
 from src.rendering import renderer # Import the new renderer module
 from src.camera.camera import Camera # Import the new Camera class
@@ -78,53 +79,6 @@ def main():
 
     # --- Calculate UI element rects once (using the actual font) ---
     scanner_button_rect, miner_button_rect = hud.get_construction_button_rects(ui_font)
-
-    # --- Define Build Logic Function (Now inside main) ---
-    def try_build_ship(ship_type, planet, ships_list):
-        """Checks resources and attempts to build a ship near the planet."""
-        cost_tritanium = 0
-        cost_credits = 0
-        ShipClass = None
-
-        if ship_type == "scanner":
-            cost_tritanium = constants.SCANNER_COST_TRITANIUM
-            cost_credits = constants.SCANNER_COST_CREDITS
-            ShipClass = ScannerShip
-        elif ship_type == "miner":
-            cost_tritanium = constants.MINING_SHIP_COST_TRITANIUM
-            cost_credits = constants.MINING_SHIP_COST_CREDITS
-            ShipClass = MiningShip
-        else:
-            print(f"ERROR: Unknown ship type '{ship_type}' to build.")
-            return False
-
-        # Check resources
-        can_afford = (
-            planet.storage.get("Tritanium", 0) >= cost_tritanium
-            and planet.storage.get("Credits", 0) >= cost_credits
-        )
-
-        if can_afford and ShipClass:
-            # Deduct resources
-            planet.storage["Tritanium"] -= cost_tritanium
-            planet.storage["Credits"] -= cost_credits
-
-            # Create ship (slightly offset from planet edge)
-            spawn_angle = random.uniform(0, 2 * math.pi)
-            spawn_dist = planet.radius + 30 # Distance from planet center
-            spawn_pos = planet.position + Vector2(spawn_dist, 0).rotate_rad(spawn_angle)
-            new_ship = ShipClass(position=spawn_pos, angle=spawn_angle + math.pi) # Face away from planet
-
-            ships_list.append(new_ship)
-            print(f"SUCCESS: Built {ship_type} ship! Resources remaining: T={planet.storage['Tritanium']}, C={planet.storage['Credits']}")
-            return True
-        else:
-            print(f"FAILED: Not enough resources to build {ship_type}. Needed T={cost_tritanium}, C={cost_credits}. Have T={planet.storage.get('Tritanium', 0)}, C={planet.storage.get('Credits', 0)}")
-            return False
-
-    # Initialize Panning state variables (these are local to main loop)
-    panning = False
-    pan_start_pos = None
 
     # --- Create Game World Objects ---
     central_planet = Planet(
@@ -198,6 +152,8 @@ def main():
 
     # Game loop flag
     running = True
+    panning = False # Initialize panning state
+    pan_start_pos = None # Also initialize pan_start_pos
 
     # --- Main Game Loop ---
     while running:
@@ -230,13 +186,15 @@ def main():
                 if event.button == 1: # Left click
                     # --- Check for Build Button Clicks ---
                     if scanner_button_rect.collidepoint(event.pos):
-                        # print("DEBUG: Clicked Build Scanner!")
-                        # Call build logic here
-                        try_build_ship("scanner", central_planet, ships)
+                        # Call construction system
+                        new_ship = construction_system.attempt_construction(central_planet, "scanner")
+                        if new_ship:
+                            ships.append(new_ship)
                     elif miner_button_rect.collidepoint(event.pos):
-                        # print("DEBUG: Clicked Build Miner!")
-                        # Call build logic here
-                        try_build_ship("miner", central_planet, ships)
+                        # Call construction system
+                        new_ship = construction_system.attempt_construction(central_planet, "miner")
+                        if new_ship:
+                            ships.append(new_ship)
                     # Add other potential left-click actions here later
 
                 elif event.button == 2:  # Right-click for panning
