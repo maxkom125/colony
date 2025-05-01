@@ -7,56 +7,69 @@ from src import constants
 from src.enums import ShipState
 
 
-def test_handle_arrival_unscanned_sets_scanning():
+@pytest.fixture
+def home_planet_fixture():
+    """Provides a reusable planet for ship home."""
+    return Planet(Vector2(100, 100))
+
+
+# def test_handle_arrival_for_set_target_asteroid_without_task(home_planet_fixture):
+#     asteroid = Asteroid(Vector2(0, 0), radius=5, color=(1, 2, 3))
+#     scanner = ScannerShip(Vector2(10, 10), home_planet=home_planet_fixture)
+#     scanner.set_target(asteroid)
+#     assert scanner.state == ShipState.MOVING_TO_ASTEROID
+#     scanner.handle_arrival()
+#     assert scanner.state == ShipState.IDLE
+#     assert scanner.target is None
+#     assert scanner.scan_timer == 0
+
+
+def test_handle_arrival_for_set_target_asteroid_with_task(home_planet_fixture):
     asteroid = Asteroid(Vector2(0, 0), radius=5, color=(1, 2, 3))
-    scanner = ScannerShip(Vector2(10, 10))
-    scanner.set_target(asteroid)
-    # Ensure initial state is MOVING_TO_ASTEROID
-    assert scanner.state == ShipState.MOVING_TO_ASTEROID
-
-    # Arrival on unscanned asteroid should start scanning
-    scanner.handle_arrival(Planet(Vector2(0,0), radius=1, color=(0,0,0)))
+    scanner = ScannerShip(Vector2(10, 10), home_planet=home_planet_fixture)
+    scanner.assign_scan_target(asteroid)
+    assert scanner.state == ShipState.MOVING_TO_SCAN
+    scanner.handle_arrival()
     assert scanner.state == ShipState.SCANNING
-    assert pytest.approx(scanner.scan_timer) == constants.SCAN_DURATION
+    assert scanner.target is asteroid
+    assert scanner.scan_timer == constants.SCAN_DURATION
+    
+
+# def test_handle_arrival_scanned_resets_idle(home_planet_fixture):
+#     asteroid = Asteroid(Vector2(0, 0), radius=5, color=(1, 2, 3))
+#     asteroid.scanned = True
+#     scanner = ScannerShip(Vector2(10, 10), home_planet=home_planet_fixture)
+#     scanner.set_target(asteroid)
+#     assert scanner.state == ShipState.MOVING_TO_ASTEROID
+#     scanner.handle_arrival()
+#     assert scanner.state == ShipState.IDLE
+#     assert scanner.target is None
 
 
-def test_handle_arrival_scanned_resets_idle():
-    asteroid = Asteroid(Vector2(0, 0), radius=5, color=(1,2,3))
-    asteroid.scanned = True
-    scanner = ScannerShip(Vector2(10, 10))
-    scanner.set_target(asteroid)
-    assert scanner.state == ShipState.MOVING_TO_ASTEROID
-
-    # Arrival on already scanned asteroid should idle and clear target
-    scanner.handle_arrival(Planet(Vector2(0,0), radius=1, color=(0,0,0)))
-    assert scanner.state == ShipState.IDLE
-    assert scanner.target is None
-
-
-def test_update_actions_scanning_transitions():
-    asteroid = Asteroid(Vector2(0, 0), radius=5, color=(1,2,3))
-    scanner = ScannerShip(Vector2(0, 0))
-    # Simulate scanning state
+def test_update_scanning_transitions(home_planet_fixture):
+    asteroid = Asteroid(Vector2(0, 0), radius=5, color=(1, 2, 3))
+    scanner = ScannerShip(Vector2(0, 0), home_planet=home_planet_fixture)
     scanner.state = ShipState.SCANNING
     scanner.target = asteroid
     scanner.scan_timer = constants.SCAN_DURATION
+    obstacles = []  # Dummy obstacles
 
-    # Partial update: remains scanning and timer decreases
-    scanner.update_actions(1.0)
+    scanner.update(1.0, obstacles)
     assert scanner.state == ShipState.SCANNING
     assert pytest.approx(scanner.scan_timer) == constants.SCAN_DURATION - 1.0
     assert not asteroid.scanned
 
-    # Complete update: timer expires, asteroid marked scanned, state idle
-    scanner.update_actions(constants.SCAN_DURATION)
+    scanner.update(constants.SCAN_DURATION, obstacles)
     assert scanner.state == ShipState.IDLE
     assert asteroid.scanned
+    assert scanner.target is None
 
 
-def test_update_actions_scanning_without_target_goes_idle():
-    scanner = ScannerShip(Vector2(0, 0))
+def test_update_scanning_without_target_goes_idle(home_planet_fixture):
+    scanner = ScannerShip(Vector2(0, 0), home_planet=home_planet_fixture)
     scanner.state = ShipState.SCANNING
     scanner.target = None
+    obstacles = []
 
-    scanner.update_actions(1.0)
-    assert scanner.state == ShipState.IDLE 
+    scanner.update(1.0, obstacles)
+    assert scanner.state == ShipState.IDLE

@@ -8,22 +8,20 @@ from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
 
 @pytest.fixture
-def rich_planet(): # Renamed from भरपूर_ग्रह
+def rich_planet():
     """Provides a planet with ample resources for building."""
     planet = Planet(Vector2(0, 0), radius=100, color=(0, 0, 255))
-    planet.storage = {"Tritanium": 1000, "Credits": 1000, "Plasma": 500}
+    # Manually add resources
+    planet.add_resources({ "Tritanium": 500, "Credits": 500, "Plasma": 500 })
     return planet
 
 @pytest.fixture
-def poor_planet(): # Renamed from गरीब_ग्रह
+def poor_planet():
     """Provides a planet with insufficient resources."""
-    planet = Planet(Vector2(0, 0), radius=100, color=(255, 0, 0))
-    # Set resources just below scanner cost
-    planet.storage = {
-        "Tritanium": constants.SCANNER_COST_TRITANIUM - 1,
-        "Credits": constants.SCANNER_COST_CREDITS,
-        "Plasma": 0
-    }
+    # Planet only needs position
+    planet = Planet(Vector2(0, 0))
+    # Manually set resources
+    planet.storage = { "Tritanium": 10, "Credits": 10, "Plasma": 10 }
     return planet
 
 
@@ -34,6 +32,7 @@ def test_construct_scanner_success(rich_planet):
     new_ship = attempt_construction(rich_planet, "scanner")
     
     assert isinstance(new_ship, ScannerShip)
+    assert new_ship.home is rich_planet
     assert rich_planet.storage["Tritanium"] == initial_tritanium - constants.SCANNER_COST_TRITANIUM
     assert rich_planet.storage["Credits"] == initial_credits - constants.SCANNER_COST_CREDITS
     # Check spawn position roughly
@@ -46,6 +45,7 @@ def test_construct_miner_success(rich_planet):
     new_ship = attempt_construction(rich_planet, "miner")
     
     assert isinstance(new_ship, MiningShip)
+    assert new_ship.home is rich_planet
     assert rich_planet.storage["Tritanium"] == initial_tritanium - constants.MINING_SHIP_COST_TRITANIUM
     assert rich_planet.storage["Credits"] == initial_credits - constants.MINING_SHIP_COST_CREDITS
     assert new_ship.position.distance_to(rich_planet.position) == pytest.approx(rich_planet.radius + 30)

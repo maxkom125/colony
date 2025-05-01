@@ -43,7 +43,7 @@ def attempt_construction(planet: Planet, ship_type: str):
             spawn_angle = random.uniform(0, 2 * math.pi)
             spawn_dist = planet.radius + 30 # Distance from planet center
             spawn_pos = planet.position + Vector2(spawn_dist, 0).rotate_rad(spawn_angle)
-            new_ship = ShipClass(position=spawn_pos, angle=spawn_angle + math.pi) # Face away
+            new_ship = ShipClass(position=spawn_pos, home_planet=planet) # TODO: set angle fase away from planet
 
             print(f"SUCCESS: Built {ship_type} ship! Planet resources remaining: T={planet.storage.get('Tritanium', 0)}, C={planet.storage.get('Credits', 0)}")
             return new_ship

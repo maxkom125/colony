@@ -1,6 +1,11 @@
 import pytest
 from pygame.math import Vector2
-from src.utils import find_nearest_object, line_circle_intersection, check_path_for_obstacles
+from src.entities.asteroid import Asteroid
+from src.utils import (
+    find_nearest_object,
+    line_circle_intersection,
+    check_path_for_obstacles
+)
 
 # Basic Mock Object for testing
 class MockObject:
@@ -11,6 +16,22 @@ class MockObject:
 
     def __repr__(self):
         return f"MockObject(pos={self.position}, radius={self.radius}, value={self.value})"
+
+# --- Mock Asteroid Setup ---
+# Create a helper function or fixture to create mock asteroids for resource tests
+def create_mock_asteroid(x, y, scanned=True, resources=None):
+    asteroid = Asteroid(Vector2(x, y), radius=10, color=(0,0,0)) # Use actual Asteroid class
+    asteroid.scanned = scanned
+    # Ensure resources dict is initialized
+    if resources:
+        # Only set provided resources, assume others are 0
+        for res_type in asteroid.resources:
+            asteroid.resources[res_type] = resources.get(res_type, 0)
+    else:
+        # Default to 0 if no resources provided
+        for res_type in asteroid.resources:
+            asteroid.resources[res_type] = 0
+    return asteroid
 
 # Tests will go here
 def test_find_nearest_object_basic():

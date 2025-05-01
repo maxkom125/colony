@@ -1,11 +1,13 @@
 import math
 from pygame.math import Vector2  # Import Vector2
+from typing import TYPE_CHECKING
 
-# from . import entities # No longer needed
-# No entity imports needed here anymore.
+# Conditional imports for type hints to prevent circular dependency
+if TYPE_CHECKING:
+    from .entities.entity import Entity # Import base Entity if needed for the list type
 
 
-def find_nearest_object(source_pos_vec: Vector2, target_objects, filter_func):
+def find_nearest_object(source_pos_vec: Vector2, target_objects: list['Entity'], filter_func):
     """Finds the nearest object in target_objects based on distance from source_pos_vec,
     considering only objects for which filter_func(obj) returns True.
     Assumes target_objects have a .position (Vector2) attribute.

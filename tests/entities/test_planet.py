@@ -2,6 +2,7 @@ import pygame
 from pygame.math import Vector2
 from src.entities.planet import Planet
 from src import constants
+from src.enums import ResourceType
 # Remove ship imports - no longer needed here
 # from src.entities.ships.scanner_ship import ScannerShip
 # from src.entities.ships.mining_ship import MiningShip
@@ -11,16 +12,20 @@ import pytest
 @pytest.fixture
 def basic_planet():
     """Provides a basic planet instance for testing."""
-    return Planet(Vector2(100, 100), radius=50, color=(1, 2, 3))
+    return Planet(Vector2(0,0), radius=5, color=(0,0,0))
+
+
+# Fixture to initialize pygame font module
+@pytest.fixture(scope="module", autouse=True)
+def pygame_font_init():
+    pygame.font.init()
+    yield
+    pygame.font.quit() # Optional cleanup
 
 
 def test_initial_storage_values(basic_planet):
-    # Planet storage is initialized to hardcoded values
-    assert basic_planet.storage == {
-        "Tritanium": 200,
-        "Credits": 200,
-        "Plasma": 50
-    }
+    # Planet storage is initialized to zero for all resource types
+    assert basic_planet.storage == {res_type: 0 for res_type in ResourceType.list()}
 
 # --- Tests for add_resources --- 
 
@@ -43,17 +48,18 @@ def test_add_resources_unknown_ignored(basic_planet):
 
 # --- Tests for has_resources --- 
 
-def test_has_resources_sufficient_single(basic_planet):
-    assert basic_planet.has_resources({"Tritanium": 150})
+def test_has_resources_sufficient(basic_planet):
+    basic_planet.add_resources({"Tritanium": 100, "Credits": 50})
+    assert basic_planet.has_resources({"Tritanium": 100})
+    assert basic_planet.has_resources({"Credits": 50})
 
-def test_has_resources_sufficient_multiple(basic_planet):
-    assert basic_planet.has_resources({"Tritanium": 150, "Credits": 100})
-
-def test_has_resources_insufficient_single(basic_planet):
-    assert not basic_planet.has_resources({"Tritanium": 250})
-
-def test_has_resources_insufficient_one_of_multiple(basic_planet):
-    assert not basic_planet.has_resources({"Tritanium": 150, "Credits": 250})
+def test_has_resources_insufficient(basic_planet):
+    assert not basic_planet.has_resources({"Tritanium": 100})
+    basic_planet.add_resources({"Tritanium": 100, "Credits": 50})
+    assert not basic_planet.has_resources({"Tritanium": 150})
+    assert not basic_planet.has_resources({"Credits": 100})
+    assert not basic_planet.has_resources({"Plasma": 100})
+    assert not basic_planet.has_resources({"Tritanium": 100, "Credits": 250})
 
 def test_has_resources_unknown_resource(basic_planet):
     # Should implicitly be False as storage.get defaults to 0
@@ -61,10 +67,13 @@ def test_has_resources_unknown_resource(basic_planet):
 
 def test_has_resources_empty_request(basic_planet):
     assert basic_planet.has_resources({}) # Should always be True
+    assert basic_planet.has_resources({"Tritanium": 0})
 
 # --- Tests for remove_resources --- 
 
 def test_remove_resources_success(basic_planet):
+    # Add some resources first to test removal
+    basic_planet.add_resources({"Tritanium": 100, "Credits": 50})
     initial_tritanium = basic_planet.storage["Tritanium"]
     initial_credits = basic_planet.storage["Credits"]
     costs = {"Tritanium": 50, "Credits": 20}
@@ -72,8 +81,8 @@ def test_remove_resources_success(basic_planet):
     result = basic_planet.remove_resources(costs)
     
     assert result is True
-    assert basic_planet.storage["Tritanium"] == initial_tritanium - 50
-    assert basic_planet.storage["Credits"] == initial_credits - 20
+    assert basic_planet.storage["Tritanium"] == initial_tritanium - costs["Tritanium"]
+    assert basic_planet.storage["Credits"] == initial_credits - costs["Credits"]
 
 def test_remove_resources_fail_insufficient(basic_planet):
     initial_storage = basic_planet.storage.copy()
@@ -98,6 +107,19 @@ def test_remove_resources_empty_request(basic_planet):
     result = basic_planet.remove_resources({})
     assert result is True # Removing nothing is successful
     assert basic_planet.storage == initial_storage # Storage unchanged
+
+def test_remove_resources_insufficient(basic_planet):
+    # Starts with 0, trying to remove should fail
+    initial_storage = basic_planet.storage.copy()
+    costs = {"Tritanium": 50} # Try to remove from 0
+    result = basic_planet.remove_resources(costs)
+
+    assert result is False
+    assert basic_planet.storage == initial_storage # Storage should not change
+
+def test_remove_resources_unknown_type(basic_planet):
+    # Should implicitly be False as storage.get defaults to 0
+    assert not basic_planet.has_resources({"Unobtanium": 1})
 
 # --- Tests for draw (unchanged) --- 
 

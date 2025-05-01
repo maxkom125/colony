@@ -1,50 +1,48 @@
 import math
-from pygame.math import Vector2  # Import Vector2
+from pygame.math import Vector2
+from typing import TYPE_CHECKING, Union # Add Union import
+
 from .. import constants
 from .. import utils
+# from ..enums import ShipState # Not used directly in this function
 
-# Import specific entity classes needed for type hints / isinstance checks
-from ..entities.planet import Planet
-from ..entities.asteroid import Asteroid
-from ..entities.ships.base_ship import Spaceship
-from ..enums import ShipState # Import the enum
+# Conditional imports to break circular dependency
+if TYPE_CHECKING:
+    # Import specific entity classes needed for type hints / isinstance checks
+    from ..entities.planet import Planet
+    from ..entities.asteroid import Asteroid
+    from ..entities.ships.base_ship import Ship
 
-def update_ship_movement(ship: Spaceship, dt, obstacles: list):
+# Type hint using string literals for Ship, Asteroid, and Planet
+def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroid', 'Planet']]):
     """Calculates the ship's new position and angle based on its target and obstacles.
     Returns: (new_position_vector, new_angle_radians, arrived) tuple.
     Does NOT modify the ship object directly.
     obstacles: List of actual obstacle objects (Asteroid, Planet).
     """
-    # Determine target position and arrival threshold based on ship's target type
     target_pos_vec = None
     arrival_threshold = 0
     target_obstacle_to_ignore = None  # The actual target object to ignore
 
-    if isinstance(ship.target, Asteroid):
+    # --- Determine Target Info and Calculate Arrival Threshold ---
+    # Use sum of radii + buffer for arrival detection
+    if ship.target and hasattr(ship.target, 'position') and hasattr(ship.target, 'radius'):
         target_pos_vec = ship.target.position
-        arrival_threshold = (
-            ship.target.radius + constants.ARRIVAL_DISTANCE_BUFFER
-        )  # Use buffer constant
-        target_obstacle_to_ignore = ship.target  # Ignore the target Asteroid itself
-    elif isinstance(ship.target, Planet):
-        target_pos_vec = ship.target.position
-        # Arrive near planet edge + buffer.
-        arrival_threshold = ship.target.radius + constants.ARRIVAL_DISTANCE_BUFFER * 2
-        target_obstacle_to_ignore = (
-            ship.target
-        )  # Ignore the planet itself when returning to base
+        target_obstacle_to_ignore = ship.target
+        # Calculate threshold based on both radii + buffer
+        arrival_threshold = ship.get_arrival_threshold()
     else:
-        # No valid target or target is not Asteroid/Planet (e.g., target is None after dumping/idle)
-        # Ship shouldn't be in a moving state without a target, but handle gracefully.
-        return ship.position, ship.angle, False  # Return current Vector2 position
+        # No target, return current position and angle
+        print(f"WARN: Ship {ship.id} has no target, returning current position and angle.")
+        return ship.position, ship.angle, False
 
     # --- Core Movement Logic ---
     current_pos_vec = ship.position
     target_vector = target_pos_vec - current_pos_vec
     distance_to_target = target_vector.length()
 
-    # Check for arrival before collision checks
-    if distance_to_target < arrival_threshold:
+    # Check for arrival using the correct threshold
+    if distance_to_target <= arrival_threshold: # Use <= for robustness
         # Arrived: Return current position, current angle, and True
         return current_pos_vec, ship.angle, True
 
@@ -61,10 +59,25 @@ def update_ship_movement(ship: Spaceship, dt, obstacles: list):
             )
             norm_target_vector = Vector2(0, 0)  # Stay put if target is current pos
 
-    # --- Collision Avoidance Check ---
+    # --- Pre-calculate potential move distance ---
+    potential_move_dist = ship.speed * dt
+    distance_to_arrival_point = distance_to_target - arrival_threshold
+
+    # --- Check if this move step will reach or cross the arrival threshold ---
+    if potential_move_dist >= distance_to_arrival_point and distance_to_arrival_point > 0:
+        # Clamp movement to the arrival threshold
+        # Calculate the position exactly on the threshold
+        clamped_move_dist = distance_to_arrival_point
+        new_pos_vec = current_pos_vec + norm_target_vector * clamped_move_dist
+        # Angle towards the target
+        new_angle = math.atan2(norm_target_vector.y, norm_target_vector.x)
+        # Return the clamped position and signal arrival
+        return new_pos_vec, new_angle, True
+
+    # --- Collision Avoidance Check (if not arriving this step) ---
     # Calculate a point slightly ahead along the intended path
     lookahead_dist = min(
-        distance_to_target, ship.speed * constants.AVOIDANCE_LOOKAHEAD_TIME
+        distance_to_target, ship.speed * max(constants.AVOIDANCE_LOOKAHEAD_TIME, dt * 2)
     )  # Don't look beyond target
     intended_next_pos_vec = current_pos_vec + norm_target_vector * lookahead_dist
 
@@ -120,7 +133,8 @@ def update_ship_movement(ship: Spaceship, dt, obstacles: list):
     ):  # Only move if move_vector is valid
         # Normalize the final move vector before applying speed and dt
         final_move_direction = move_vector.normalize()
-        new_pos_vec = current_pos_vec + final_move_direction * ship.speed * dt
+        # Apply the *full* potential move distance calculated earlier
+        new_pos_vec = current_pos_vec + final_move_direction * potential_move_dist
         # Update angle based on the actual movement direction
         new_angle = math.atan2(final_move_direction.y, final_move_direction.x)
     else:

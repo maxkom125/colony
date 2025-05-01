@@ -23,6 +23,8 @@ from src.systems import construction_system # Import the new construction system
 from src import hud # Import the renamed hud module
 from src.rendering import renderer # Import the new renderer module
 from src.camera.camera import Camera # Import the new Camera class
+# Import Fleet
+from src.fleet import Fleet
 
 # --- Global Camera State --- (REMOVED)
 # camera_offset = Vector2(0, 0)
@@ -67,25 +69,20 @@ def main():
     # Clock for controlling frame rate
     clock = pygame.time.Clock()
 
+    # --- Create Fleet --- 
+    fleet = Fleet() # Central registry
+
     # --- Create Camera Instance ---
     camera = Camera()
 
     # --- Game State Variables ---
-    mining_priorities = {
-        "Tritanium": 1.0,
-        "Credits": 1.0,
-        "Plasma": 1.0
-    }
+    # (removed target assignments)
 
     # --- Calculate UI element rects once (using the actual font) ---
     scanner_button_rect, miner_button_rect = hud.get_construction_button_rects(ui_font)
 
     # --- Create Game World Objects ---
-    central_planet = Planet(
-        position=Vector2(0, 0),
-        radius=constants.PLANET_RADIUS,
-        color=constants.PLANET_COLOR,
-    )
+    central_planet = Planet(position=Vector2(0, 0)) # Uses constants internally
     asteroids = []
     max_gen_attempts = (
         constants.ASTEROID_COUNT * 10
@@ -140,24 +137,36 @@ def main():
         )
         stars.append((star_pos, star_radius))  # Store world Vector2 and radius
 
-    # Create initial ships
-    ships = [
-        ScannerShip(
-            position=Vector2(0, -constants.PLANET_RADIUS - 50), angle=-math.pi / 2
-        ),  # Use ScannerShip
-        MiningShip(
-            position=Vector2(50, -constants.PLANET_RADIUS - 50), angle=-math.pi / 2
-        ),
-    ]
+    # --- Create initial ships AND add to Fleet and Admirals --- 
+    scanner1 = ScannerShip(position=Vector2(0, -constants.PLANET_RADIUS - 50), home_planet=central_planet)
+    miner1 = MiningShip(position=Vector2(50, -constants.PLANET_RADIUS - 50), home_planet=central_planet)
+
+    # TMP: TODO: Remove this
+    # scanner1. # Removed incomplete line
+    if asteroids: # Check if there are any asteroids
+        scanner1.assign_scan_target(asteroids[0]) # Assign the first asteroid
+    
+    fleet.add_ship(scanner1)
+    fleet.add_ship(miner1)
+    # Initial assignments are handled by admiral logic (defaults to Random)
 
     # Game loop flag
     running = True
     panning = False # Initialize panning state
     pan_start_pos = None # Also initialize pan_start_pos
+    # dragging_slider = None # Remove slider drag state
 
     # --- Main Game Loop ---
     while running:
         dt = clock.tick(constants.FPS) / 1000.0
+        # Get current ships from fleet for rendering/global checks
+        all_ships = fleet.get_all_ships()
+
+        # --- Get assignment button rects for interaction ---
+        current_assignment_buttons = hud.get_assignment_button_rects()
+
+        # --- Recalculate total miners each frame --- (Now done inside Admiral if needed)
+        # total_mining_ships = len(fleet.get_ships_by_type(MiningShip))
 
         # --- Event Handling ---
         mouse_pos_vec = Vector2(pygame.mouse.get_pos())  # Get mouse pos as Vector2
@@ -171,113 +180,75 @@ def main():
                 # Delegate zoom handling to camera object
                 zoom_direction = event.y
                 camera.handle_zoom(zoom_direction, mouse_pos_vec)
-                # Remove old zoom logic:
-                # old_zoom_level = zoom_level
-                # def screen_to_world_local(screen_pos_vec: Vector2) -> Vector2:
-                #     ...
-                # mouse_world_pos_before = screen_to_world_local(mouse_pos_vec)
-                # ... apply zoom ...
-                # def screen_to_world_local_after(screen_pos_vec: Vector2) -> Vector2:
-                #     ...
-                # mouse_world_pos_after = screen_to_world_local_after(mouse_pos_vec)
-                # camera_offset += mouse_world_pos_before - mouse_world_pos_after
+                # Remove old zoom logic
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1: # Left click
-                    # --- Check for Build Button Clicks ---
-                    if scanner_button_rect.collidepoint(event.pos):
-                        # Call construction system
-                        new_ship = construction_system.attempt_construction(central_planet, "scanner")
-                        if new_ship:
-                            ships.append(new_ship)
-                    elif miner_button_rect.collidepoint(event.pos):
-                        # Call construction system
-                        new_ship = construction_system.attempt_construction(central_planet, "miner")
-                        if new_ship:
-                            ships.append(new_ship)
-                    # Add other potential left-click actions here later
+                    # --- Check for Assignment Button Clicks ---
+                    clicked_on_assignment_button = False
+                    if current_assignment_buttons:
+                        for category, buttons in current_assignment_buttons.items():
+                            delta = 0
+                            if buttons['+'] and buttons['+'].collidepoint(event.pos):
+                                delta = 1
+                            elif buttons['-'] and buttons['-'].collidepoint(event.pos):
+                                delta = -1
+                            
+                            if delta != 0:
+                                # Call admiral to update targets
+                                fleet.miner_admiral.adjust_ship_count_for_category(category, delta)
+                                clicked_on_assignment_button = True
+                                break # Process only one button click per event
+                        # REMOVED manual adjustment logic
 
-                elif event.button == 2:  # Right-click for panning
+                    if not clicked_on_assignment_button:
+                        # --- Check for Build Button Clicks ---
+                        if scanner_button_rect.collidepoint(event.pos):
+                            new_ship = construction_system.attempt_construction(central_planet, "scanner")
+                            if new_ship:
+                                fleet.add_ship(new_ship) # Add to fleet
+                        elif miner_button_rect.collidepoint(event.pos):
+                            new_ship = construction_system.attempt_construction(central_planet, "miner")
+                            if new_ship:
+                                fleet.add_ship(new_ship) # Add to fleet
+
+                elif event.button == 2:  # Panning
                     panning = True
                     pan_start_pos = mouse_pos_vec
             elif event.type == pygame.MOUSEBUTTONUP:
+                # if event.button == 1: dragging_slider = None # Removed
                 if event.button == 2:
                     panning = False
                     pan_start_pos = None
-            elif event.type == pygame.MOUSEMOTION and panning and pan_start_pos:
-                pan_delta_screen = mouse_pos_vec - pan_start_pos
-                # Delegate panning to camera object
-                camera.handle_pan(pan_delta_screen)
-                pan_start_pos = mouse_pos_vec # Update pan start for next motion event
-                # Remove old pan logic:
-                # pan_delta_world = pan_delta_screen / zoom_level
-                # camera_offset -= pan_delta_world
+            elif event.type == pygame.MOUSEMOTION:
+                # if dragging_slider: ... # Removed
+                if panning and pan_start_pos:
+                    pan_delta_screen = mouse_pos_vec - pan_start_pos
+                    camera.handle_pan(pan_delta_screen)
+                    pan_start_pos = mouse_pos_vec
 
-        # --- Prepare Data for Systems ---
-        # Obstacles are the list of Asteroid objects + the Planet
-        obstacles = asteroids + [central_planet]
+        # --- Update Systems ---
+        # Call Miner Admiral update/assignment
+        fleet.give_orders(asteroids, central_planet)
 
-        # --- Game Logic Phases ---
+        # Update individual ship states (movement, mining, scanning timers)
+        fleet.update_ships(dt, [*asteroids, central_planet])
 
-        # 1. AI Phase (Assign Tasks to Idle Ships)
-        for ship in ships:
-            if ship.state == ShipState.IDLE: # Use Enum
-                # Use isinstance to check ship type for task assignment
-                if isinstance(ship, MiningShip):
-                    ai_system.assign_miner_task( # Use new module name
-                        ship, asteroids, central_planet,
-                        mining_priorities # Pass the priorities dictionary
-                    )
-                elif isinstance(ship, ScannerShip):
-                    ai_system.assign_scanner_task(ship, asteroids) # Use new module name
-                # else: # Handle other potential ship types later
-                #     pass
-
-        # 2. Movement Phase (Update Position/Angle for Moving Ships)
-        for ship in ships:
-            # Check state using Enum members
-            if ship.state in [ShipState.MOVING_TO_ASTEROID, ShipState.RETURNING_TO_BASE]:
-                # Call movement system to calculate next step
-                new_pos_vec, new_angle, arrived = movement_system.update_ship_movement( # Use new module name
-                    ship, dt, obstacles
-                )
-                # Apply results using Vector2
-                ship.position = new_pos_vec
-                ship.angle = new_angle
-
-                # Handle arrival
-                if arrived:
-                    ship.handle_arrival(
-                        central_planet
-                    )  # Pass planet ref if needed by handler
-
-        # 3. Action Phase (Update Timers, Resources for Ships)
-        for ship in ships:
-            ship.update_actions(dt, central_planet)  # Pass planet for dumping
-
-        # --- Drawing Phase ---
-        # Call the main drawing function from the renderer module
-        # Pass the camera object instead of offset/zoom
+        # --- Rendering --- 
+        screen.fill(constants.BACKGROUND_COLOR) # Use constants
+        # Call the consolidated draw_frame function instead of individual stubs
         renderer.draw_frame(
             screen,
-            ui_font,
-            camera, # Pass camera object
-            # camera_offset, # Removed
-            # zoom_level, # Removed
+            ui_font, # Pass the font needed by asteroid drawing
+            camera,
             central_planet,
             asteroids,
-            ships,
+            all_ships, # Pass all ships
             stars
         )
-
-        # --- Draw HUD using functions from hud module ---
-        # HUD is drawn *after* the world frame
-        hud.draw_planet_storage(screen, central_planet, ui_font)
-        hud.draw_ship_statuses(screen, ships, ui_font)
-        hud.draw_zoom_level(screen, camera, ui_font)
-        hud.draw_construction_buttons(screen, ui_font)
-        # Draw the mining priorities
-        hud.draw_mining_priorities(screen, mining_priorities, ui_font)
+        
+        # --- Draw HUD ---
+        hud.draw_hud(screen, ui_font, fleet, central_planet, camera, all_ships)
 
         # Update Display
         pygame.display.flip()

@@ -5,7 +5,7 @@ from .. import constants
 # Import types for hinting
 from ..entities.planet import Planet
 from ..entities.asteroid import Asteroid
-from ..entities.ships.base_ship import Spaceship
+from ..entities.ships.base_ship import Ship
 from ..camera.camera import Camera # Import Camera for type hint
 
 # --- Main Drawing Function ---
@@ -16,7 +16,7 @@ def draw_frame(
     camera: Camera, # Accept Camera object
     planet: Planet,
     asteroids: list[Asteroid],
-    ships: list[Spaceship],
+    ships: list[Ship],
     stars: list[tuple[Vector2, float]],
 ):
     """Draws a single frame of the game world (excluding HUD)."""

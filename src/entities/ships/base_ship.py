@@ -1,76 +1,128 @@
 # Contents for src/entities/ships/base_ship.py
 import pygame
-import math
+import itertools  # For generating unique IDs
 from pygame.math import Vector2
 from ... import constants  # Relative import
-from ..asteroid import Asteroid  # Need these for type hints/checks
+from ..entity import Entity  # Inherit from Entity
+from ...enums import ShipState, ShipType, ResourceType
+from ..asteroid import Asteroid
 from ..planet import Planet
-from ...enums import ShipState # Import the enum
+from ...systems.movement_system import update_ship_movement
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ...systems.admirals.base_admiral import Admiral
 
 
-class Spaceship:
-    def __init__(self, position: Vector2, size, color, angle=0):
-        self.position = position
-        self.size = size
-        self.color = color
-        self.angle = angle
-        self.speed = constants.SHIP_SPEED
-        self.target = None
-        self.state = ShipState.IDLE # Use Enum for initial state
+class Ship(Entity):
+    """Base class for all player-controlled ships."""
+
+    # Class variable to generate unique IDs
+    _id_counter = itertools.count(1)
+
+    def __init__(
+        self,
+        position: Vector2,
+        radius: int,
+        color: tuple,
+        speed: float,
+        home_planet: Planet,
+        ship_id: int | None = None,
+    ):
+        # Use passed-in values, defaults should be handled by subclasses using constants
+        assigned_id = ship_id if ship_id is not None else next(Ship._id_counter)
+        super().__init__(position, radius, color, assigned_id)
+
+        self.speed = speed
+        self.home: Planet = home_planet
+        self.target: Entity | None = None
+        self.state = ShipState.IDLE
+        self.type = ShipType.UNKNOWN
+        self.angle = 0.0  # Add angle property, default to 0 rad
+
+        self.admiral: 'Admiral' | None = None  # Will be set when added to fleet
+
+        # Timers - may or may not be used by all subclasses
         self.scan_timer = 0.0
         self.mining_timer = 0.0
         self.dumping_timer = 0.0
-        self.cargo_capacity = 0  # Specific ships override this
-        self.cargo = {res_type: 0 for res_type in constants.RESOURCE_TYPES}
 
-    def set_target(self, target_entity):
+        # Cargo - relevant for mining/transport ships
+        self.cargo_capacity = 0
+        self.cargo = {res_type: 0 for res_type in ResourceType.list()}  # Use enum list here
+
+    def set_target(self, target_entity: Entity | None):
+        """Sets the ship's target and initial state for moving."""
         self.target = target_entity
-        if not target_entity:
-            self.state = ShipState.IDLE # Use Enum
-            return
+        self.reset_timers()
 
-        if isinstance(target_entity, Asteroid):
-            self.state = ShipState.MOVING_TO_ASTEROID # Use Enum
-        elif isinstance(target_entity, Planet):
-            self.state = ShipState.RETURNING_TO_BASE # Use Enum
-        else:
-            print(
-                f"WARNING: Unknown target type {type(target_entity)}. Ship going idle."
-            )
-            self.state = ShipState.IDLE # Use Enum
-
-        self.scan_timer = 0.0
-        self.mining_timer = 0.0
-        self.dumping_timer = 0.0
-
-    def get_cargo_total(self):
+    def get_cargo_total(self) -> int:
+        """Returns the total amount of resources currently in the cargo hold."""
         return sum(self.cargo.values())
 
-    def update_actions(self, dt, planet=None):
-        # This base method handles common timer logic if any, but scanning/mining/dumping
-        # logic is primarily handled in subclasses or specific state handlers.
-        # Example: If we had a general cooldown timer, it could be handled here.
-        pass  # Base ship doesn't perform actions on its own
+    def update(self, dt: float, obstacles: list[Asteroid | Planet]):
+        """Base update loop. Calls movement update. Subclasses add state actions."""
+        self.update_movement(dt, obstacles)
+        # Subclasses will add their state-specific action logic here
+        # by overriding this method and calling super().update(dt)
 
-    def handle_arrival(self, planet):
-        # Base arrival logic: typically just go idle unless overridden
-        # print(f"DEBUG: Base ship arrived at {self.target}. Going idle.")
-        self.state = ShipState.IDLE # Use Enum
-        self.target = None  # Clear target on arrival if just idling
+    def update_movement(self, dt: float, obstacles: list[Asteroid | Planet]):
+        """Handles moving the ship towards its target and checks for arrival."""
+        # --- Checks ---
+        if not self.target:  # No target, nothing to move towards
+            return
+
+        # Check if actually in a moving state using the constant set
+        is_moving = self.state in constants.MOVING_SHIP_STATES  # Use the set
+
+        if not is_moving:
+            return  # Not in a state where movement occurs
+
+        # --- Movement ---
+        self.position, self.angle, ship_arrived = update_ship_movement(self, dt, obstacles)
+        if ship_arrived:
+            if self.admiral:
+                self.admiral.issue_command(self)
+            else:
+                print(f"ERROR: Ship {self.id} has no admiral, cannot issue arrival command.")
+                return
+
+    def get_arrival_threshold(self):
+        if self.target and hasattr(self.target, "radius"):
+            return self.radius + self.target.radius + constants.ARRIVAL_DISTANCE_BUFFER
+        else:
+            print(
+                f"WARN: Ship {self.id} has no target (or something wrong with target), returning 0 arrival threshold."
+            )
+            return 0
+
+    def handle_arrival(self):
+        """DEPRECATED."""
+        print("DEPRECATED: handle_arrival is deprecated")
+
+    def set_state(self, new_state: ShipState):
+        """Sets the ship's state and resets any relevant timers."""
+        self.state = new_state
+        self.reset_timers()
+
+    def reset_timers(self):
+        """Resets timers when state changes. Base class does nothing."""
+        pass
 
     def draw(self, surface, world_to_screen_func, zoom_level):
-        # Default draw method (e.g., scanner ship)
+        """Draws the ship as a simple triangle."""
         screen_pos = world_to_screen_func(self.position)
-        screen_size = int(self.size * zoom_level)
+        screen_radius = max(3, int(self.radius * zoom_level))  # Ensure minimum size
 
-        if screen_size < 3:
-            screen_size = 3
+        # Triangle points based on position, angle (0 for base ship), and screen radius
+        # Pointing right by default if angle is 0
+        p1 = screen_pos + Vector2(screen_radius, 0)
+        p2 = screen_pos + Vector2(-screen_radius * 0.5, screen_radius * 0.87)  # approx sqrt(3)/2
+        p3 = screen_pos + Vector2(-screen_radius * 0.5, -screen_radius * 0.87)
 
-        p1_offset = Vector2(screen_size * 0.6, 0).rotate_rad(self.angle)
-        p1 = screen_pos + p1_offset
-        p2_offset = Vector2(screen_size * 0.4, 0).rotate_rad(self.angle + math.pi * 0.8)
-        p2 = screen_pos + p2_offset
-        p3_offset = Vector2(screen_size * 0.4, 0).rotate_rad(self.angle - math.pi * 0.8)
-        p3 = screen_pos + p3_offset
+        # Rotation would be needed if ships have an angle property
+        # angle_rad = math.radians(self.angle) # If angle exists
+        # p1 = screen_pos + Vector2(screen_radius, 0).rotate_rad(angle_rad)
+        # ... rotate p2, p3 ...
 
         pygame.draw.polygon(surface, self.color, [p1, p2, p3])
