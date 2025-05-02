@@ -12,17 +12,19 @@ from src.entities.planet import Planet
 from src.entities.asteroid import Asteroid
 from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
+
 # Import the enum
 from src.enums import ShipState
 
 # from src.utils import find_nearest_asteroid # No longer needed here directly
 # Import system modules
-from src.systems import ai_system # Import from new location
-from src.systems import movement_system # Import from new location
-from src.systems import construction_system # Import the new construction system
-from src import hud # Import the renamed hud module
-from src.rendering import renderer # Import the new renderer module
-from src.camera.camera import Camera # Import the new Camera class
+from src.systems import ai_system  # Import from new location
+from src.systems import movement_system  # Import from new location
+from src.systems import construction_system  # Import the new construction system
+from src import hud  # Import the renamed hud module
+from src.rendering import renderer  # Import the new renderer module
+from src.camera.camera import Camera  # Import the new Camera class
+
 # Import Fleet
 from src.fleet import Fleet
 
@@ -37,6 +39,7 @@ from src.fleet import Fleet
 
 # --- Game Logic Helpers (Defined within main scope or separate module) ---
 # (try_build_ship moved inside main())
+
 
 def main():
     # global camera_offset, zoom_level  # REMOVED Globals
@@ -60,17 +63,15 @@ def main():
     except pygame.error as e:
         print(f"Error setting display mode: {e}. Falling back to windowed.")
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = 1280, 720  # Default fallback
-        screen = pygame.display.set_mode(
-            (constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT)
-        )
+        screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
 
     pygame.display.set_caption(constants.GAME_TITLE)
 
     # Clock for controlling frame rate
     clock = pygame.time.Clock()
 
-    # --- Create Fleet --- 
-    fleet = Fleet() # Central registry
+    # --- Create Fleet ---
+    fleet = Fleet()  # Central registry
 
     # --- Create Camera Instance ---
     camera = Camera()
@@ -82,7 +83,7 @@ def main():
     scanner_button_rect, miner_button_rect = hud.get_construction_button_rects(ui_font)
 
     # --- Create Game World Objects ---
-    central_planet = Planet(position=Vector2(0, 0)) # Uses constants internally
+    central_planet = Planet(position=Vector2(0, 0))  # Uses constants internally
     asteroids = []
     max_gen_attempts = (
         constants.ASTEROID_COUNT * 10
@@ -95,9 +96,7 @@ def main():
             constants.ASTEROID_SPAWN_RADIUS_MIN, constants.ASTEROID_SPAWN_RADIUS_MAX
         )
         cand_pos = Vector2(spawn_dist, 0).rotate_rad(angle)
-        cand_radius = random.uniform(
-            constants.ASTEROID_MIN_RADIUS, constants.ASTEROID_MAX_RADIUS
-        )
+        cand_radius = random.uniform(constants.ASTEROID_MIN_RADIUS, constants.ASTEROID_MAX_RADIUS)
         overlap = False
         for existing_asteroid in asteroids:
             if (
@@ -106,10 +105,7 @@ def main():
             ):
                 overlap = True
                 break
-        if (
-            cand_pos.length_squared()
-            < (cand_radius + constants.PLANET_RADIUS + 20) ** 2
-        ):
+        if cand_pos.length_squared() < (cand_radius + constants.PLANET_RADIUS + 20) ** 2:
             overlap = True
         if not overlap:
             asteroids.append(
@@ -124,36 +120,31 @@ def main():
 
     # Create background stars (Generate positions in world coordinates)
     stars = []
-    star_gen_radius = (
-        constants.ASTEROID_SPAWN_RADIUS_MAX * 1.5
-    )  # Generate stars a bit further out
+    star_gen_radius = constants.ASTEROID_SPAWN_RADIUS_MAX * 1.5  # Generate stars a bit further out
     for _ in range(constants.STAR_COUNT):
         star_pos = Vector2(
             random.uniform(-star_gen_radius, star_gen_radius),
             random.uniform(-star_gen_radius, star_gen_radius),
         )
-        star_radius = random.uniform(
-            constants.STAR_MIN_RADIUS, constants.STAR_MAX_RADIUS
-        )
+        star_radius = random.uniform(constants.STAR_MIN_RADIUS, constants.STAR_MAX_RADIUS)
         stars.append((star_pos, star_radius))  # Store world Vector2 and radius
 
-    # --- Create initial ships AND add to Fleet and Admirals --- 
-    scanner1 = ScannerShip(position=Vector2(0, -constants.PLANET_RADIUS - 50), home_planet=central_planet)
-    miner1 = MiningShip(position=Vector2(50, -constants.PLANET_RADIUS - 50), home_planet=central_planet)
+    # --- Create initial ships AND add to Fleet and Admirals ---
+    scanner1 = ScannerShip(
+        position=Vector2(0, -constants.PLANET_RADIUS - 50), home_planet=central_planet
+    )
+    miner1 = MiningShip(
+        position=Vector2(50, -constants.PLANET_RADIUS - 50), home_planet=central_planet
+    )
 
-    # TMP: TODO: Remove this
-    # scanner1. # Removed incomplete line
-    if asteroids: # Check if there are any asteroids
-        scanner1.assign_scan_target(asteroids[0]) # Assign the first asteroid
-    
     fleet.add_ship(scanner1)
     fleet.add_ship(miner1)
-    # Initial assignments are handled by admiral logic (defaults to Random)
+    # Initial miner assignments are handled by admiral logic (defaults to Random)
 
     # Game loop flag
     running = True
-    panning = False # Initialize panning state
-    pan_start_pos = None # Also initialize pan_start_pos
+    panning = False  # Initialize panning state
+    pan_start_pos = None  # Also initialize pan_start_pos
     # dragging_slider = None # Remove slider drag state
 
     # --- Main Game Loop ---
@@ -183,34 +174,38 @@ def main():
                 # Remove old zoom logic
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1: # Left click
+                if event.button == 1:  # Left click
                     # --- Check for Assignment Button Clicks ---
                     clicked_on_assignment_button = False
                     if current_assignment_buttons:
                         for category, buttons in current_assignment_buttons.items():
                             delta = 0
-                            if buttons['+'] and buttons['+'].collidepoint(event.pos):
+                            if buttons["+"] and buttons["+"].collidepoint(event.pos):
                                 delta = 1
-                            elif buttons['-'] and buttons['-'].collidepoint(event.pos):
+                            elif buttons["-"] and buttons["-"].collidepoint(event.pos):
                                 delta = -1
-                            
+
                             if delta != 0:
                                 # Call admiral to update targets
                                 fleet.miner_admiral.adjust_ship_count_for_category(category, delta)
                                 clicked_on_assignment_button = True
-                                break # Process only one button click per event
+                                break  # Process only one button click per event
                         # REMOVED manual adjustment logic
 
                     if not clicked_on_assignment_button:
                         # --- Check for Build Button Clicks ---
                         if scanner_button_rect.collidepoint(event.pos):
-                            new_ship = construction_system.attempt_construction(central_planet, "scanner")
+                            new_ship = construction_system.attempt_construction(
+                                central_planet, "scanner"
+                            )
                             if new_ship:
-                                fleet.add_ship(new_ship) # Add to fleet
+                                fleet.add_ship(new_ship)  # Add to fleet
                         elif miner_button_rect.collidepoint(event.pos):
-                            new_ship = construction_system.attempt_construction(central_planet, "miner")
+                            new_ship = construction_system.attempt_construction(
+                                central_planet, "miner"
+                            )
                             if new_ship:
-                                fleet.add_ship(new_ship) # Add to fleet
+                                fleet.add_ship(new_ship)  # Add to fleet
 
                 elif event.button == 2:  # Panning
                     panning = True
@@ -234,19 +229,19 @@ def main():
         # Update individual ship states (movement, mining, scanning timers)
         fleet.update_ships(dt, [*asteroids, central_planet])
 
-        # --- Rendering --- 
-        screen.fill(constants.BACKGROUND_COLOR) # Use constants
+        # --- Rendering ---
+        screen.fill(constants.BACKGROUND_COLOR)  # Use constants
         # Call the consolidated draw_frame function instead of individual stubs
         renderer.draw_frame(
             screen,
-            ui_font, # Pass the font needed by asteroid drawing
+            ui_font,  # Pass the font needed by asteroid drawing
             camera,
             central_planet,
             asteroids,
-            all_ships, # Pass all ships
-            stars
+            all_ships,  # Pass all ships
+            stars,
         )
-        
+
         # --- Draw HUD ---
         hud.draw_hud(screen, ui_font, fleet, central_planet, camera, all_ships)
 

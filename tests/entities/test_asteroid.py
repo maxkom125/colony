@@ -14,6 +14,25 @@ def fixed_random(monkeypatch):
     yield
 
 
+def test_asteroid_initialization():
+    """Test basic attributes including scan points calculation."""
+    radius = 15
+    position = Vector2(10, 20)
+    color = (1, 2, 3)
+    ast = Asteroid(position=position, radius=radius, color=color)
+
+    assert ast.position == position
+    assert ast.radius == radius
+    assert not ast.scanned
+
+    # Verify initial scan points calculation (using constants directly)
+    expected_initial_scan_points = (
+        radius * constants.SCAN_POINTS_PER_RADIUS
+        + constants.MINIMUM_SCAN_POINTS # Assuming user added this constant
+    )
+    assert ast.scan_points_remaining == expected_initial_scan_points, "Initial scan points mismatch"
+
+
 def test_resource_distribution_and_dominant_color():
     color = (123, 234, 56)
     ast = Asteroid(Vector2(0, 0), radius=5, color=color)

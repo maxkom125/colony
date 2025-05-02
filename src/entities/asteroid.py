@@ -14,7 +14,6 @@ class Asteroid(Entity):
         # Use entity_id from base class
         super().__init__(position, radius, constants.ASTEROID_COLOR, entity_id)
         self.initial_color = constants.ASTEROID_COLOR
-        self.scanned = False
 
         chosen_res = random.choices(ResourceType.list(), weights=ResourceType.weights(), k=1)[0]
         resource_amount = random.randint(
@@ -23,6 +22,12 @@ class Asteroid(Entity):
         )
         self.resources = {res_type: 0 for res_type in ResourceType.list()}
         self.resources[chosen_res] = resource_amount
+        
+        self.scanned = False
+        self.scan_points_remaining = self.calculate_scan_points_remaining()
+
+    def calculate_scan_points_remaining(self):
+        return self.radius * constants.SCAN_POINTS_PER_RADIUS + constants.MINIMUM_SCAN_POINTS
 
     def get_dominant_resource_color(self):
         if not self.resources:

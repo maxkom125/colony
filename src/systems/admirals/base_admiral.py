@@ -53,7 +53,7 @@ class Admiral:
                 # This should never happen
                 print(f"WARN: {ship.type} {ship.id} is in state {ship.state}, command issued. This should never happen!")
                 ship.set_state(ShipState.IDLE)
-                ship.target = None
+                ship.set_target(None)
 
     def issue_command_to_idle_ship(self, ship: 'Ship'):
         """Assign a task to a ship."""

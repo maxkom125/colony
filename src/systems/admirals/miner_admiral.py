@@ -185,7 +185,7 @@ class MinerAdmiral(Admiral):
                 f"WARN: Miner {self.id} arrived at unknown target type {type(self.target)}. Going IDLE."
             )
             ship.set_state(ShipState.IDLE)
-            ship.target = None
+            ship.set_target(None)
             return
 
         # ---- Dumping ----

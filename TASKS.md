@@ -103,7 +103,7 @@
 - Dependencies: 7 # Depends on basic movement 
 
 ## Task ID: 18
-- Status: TODO
+- Status: DONE
 - Description: Implement resource mining priorities. Add UI sliders (0 to 1, default 1) for Tritanium, Credits, and Plasma. Store these priority values. Modify Mining Ship AI (`find_nearest_asteroid` or a new planning logic) to select target asteroids based on a weighted distribution reflecting these priorities, aiming for a proportional mining intensity/frequency for each resource rather than a strict queue. (Reminder: Discuss implementation details of weighted selection/expedition planning when starting this task).
 - Priority: Medium
 - Dependencies: 10 # Depends on Mining Implementation 
@@ -115,7 +115,16 @@
 - Dependencies: None 
 
 ## Task ID: 20
-- Status: TODO
+- Status: DONE
 - Description: Improve Scanner AI: Prevent multiple scanners from targeting the same unscanned asteroid simultaneously. Each scanner should check if an asteroid is already targeted by another scanner before selecting it.
 - Priority: Medium
-- Dependencies: 8 # Depends on basic Scan action/AI 
+- Dependencies: 8 # Depends on basic Scan action/AI
+
+## Task ID: 21
+- Status: TODO
+- Description: Add new conftest: check if admirals remove ship is called only from fleet class! ( to maintain consistency)
+- Priority: High
+- Dependencies: None
+
+## TODO: FIX scanner inide asteroid: scan radius < radius!
+## TODO: FIX random miner stops when returning to base and assigned to new category

@@ -91,11 +91,7 @@ class MiningShip(Ship):
                 if actual_mined > 0:
                     self.cargo[self.resource_to_mine] += actual_mined
                     self.target.resources[self.resource_to_mine] -= actual_mined
-                    self.mining_timer = can_take / self.mining_rate
-                    print(
-                        f"DEBUG: {self.type} {self.id} mined {actual_mined} {self.resource_to_mine}. "
-                        f"Cargo: {self.cargo[self.resource_to_mine]}/{self.cargo_capacity}"
-                    )
+                    self.mining_timer = can_take / max(self.mining_rate, constants.EPSILON)
                 else:
                     print(f"ERROR: {self.type} {self.id} mined 0 {self.resource_to_mine}. This should never happen!")
                     self.admiral.issue_command(self)
@@ -113,8 +109,11 @@ class MiningShip(Ship):
                 self.home.add_resources(self.cargo)
                 for res_type in self.cargo:
                     self.cargo[res_type] = 0
+
+                # End of cycle, admiral will issue 'moving to asteroid' command to idle ships
+                # Going IDLE
                 self.set_state(ShipState.IDLE)
-                self.target = None
+                self.set_target(None)
                 self.dumping_timer = 0.0
 
     def draw(self, surface, world_to_screen_func, zoom_level):

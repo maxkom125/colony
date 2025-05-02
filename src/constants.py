@@ -68,8 +68,12 @@ BASE_ACTION_TIME_UNIT = 1.0  # Base seconds for actions like mining (before mult
 # Scan Time
 # SCAN_TIME_PER_RADIUS_UNIT = 0.05 # Old way: Seconds per world unit of asteroid radius
 SCAN_DURATION = 3.0  # Fixed time in seconds to scan an asteroid
-SCANNER_SCAN_RANGE = 150.0 # ADDED BACK
+SCANNER_SCAN_RANGE = 30.0
 
+# --- Scanning Logic ---
+SCANNER_SCAN_RATE = 20.0  # "Scan points" per second
+SCAN_POINTS_PER_RADIUS = 5.0 # Scan points required per unit of asteroid radius
+MINIMUM_SCAN_POINTS = 50 # Minimum scan points
 # Mining and Dumping Times
 # MINING_TIME_MULTIPLIER = 0.1 # Old way: Multiplied by radius and base time
 MINING_DURATION = 5.0  # Fixed time in seconds to mine an asteroid patch
@@ -77,7 +81,7 @@ MINING_RATE = 10.0  # Resources mined per second
 DUMPING_DURATION = 2.0  # Seconds to dump resources at the planet
 
 # Cargo Capacity
-MINING_SHIP_CARGO_CAPACITY = 250  # Max total resource units mining ship can hold
+MINING_SHIP_CARGO_CAPACITY = 50  # Max total resource units mining ship can hold
 
 # Avoidance
 AVOIDANCE_LOOKAHEAD_TIME = 0.5  # Seconds to look ahead for obstacles
