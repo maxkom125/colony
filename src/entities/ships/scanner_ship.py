@@ -48,8 +48,12 @@ class ScannerShip(Ship):
                 return
 
             # Ensure target is an Asteroid and has scan points attribute
-            if not isinstance(self.target, Asteroid) or not hasattr(self.target, 'scan_points_remaining'):
-                print(f"WARN: Scanner {self.id} scanning invalid target {type(self.target).__name__} {self.target.id}. Going IDLE.")
+            if not isinstance(self.target, Asteroid) or not hasattr(
+                self.target, "scan_points_remaining"
+            ):
+                print(
+                    f"WARN: Scanner {self.id} scanning invalid target {type(self.target).__name__} {self.target.id}. Going IDLE."
+                )
                 self.set_state(ShipState.IDLE)
                 self.set_target(None)
                 return
@@ -57,18 +61,22 @@ class ScannerShip(Ship):
             # ---- Scanning Logic ----
             if self.target.scan_points_remaining > constants.EPSILON:
                 scan_amount = dt * self.scan_rate
-                self.target.scan_points_remaining -= min(scan_amount, self.target.scan_points_remaining)
+                self.target.scan_points_remaining -= min(
+                    scan_amount, self.target.scan_points_remaining
+                )
                 # Update timer for UI based on remaining points
-                self.scan_timer = self.target.scan_points_remaining / max(self.scan_rate, constants.EPSILON)
+                self.scan_timer = self.target.scan_points_remaining / max(
+                    self.scan_rate, constants.EPSILON
+                )
             else:
                 # Target is fully scanned or was already scanned
-                self.target.scan_points_remaining = 0 # Ensure clamped
+                self.target.scan_points_remaining = 0  # Ensure clamped
                 self.target.scanned = True
-                self.scan_timer = 0.0 # Ensure timer shows 0
+                self.scan_timer = 0.0  # Ensure timer shows 0
                 print(
-                        f"DEBUG: Ship {self.id} finished scanning Asteroid {self.target.id}. "
-                        f"Resources: {self.target.resources}"
-                    )
+                    f"DEBUG: Ship {self.id} finished scanning Asteroid {self.target.id}. "
+                    f"Resources: {self.target.resources}"
+                )
                 self.admiral.issue_command(self)
 
         # MOVING_TO_POSITION is handled entirely by base class update_movement
@@ -82,7 +90,10 @@ class ScannerShip(Ship):
         else:
             return super().get_arrival_threshold()
 
-    # Uses the default draw method from base_ship.Spaceship
+    # Explicitly define draw, using the base class implementation
+    def draw(self, surface, world_to_screen_func, zoom_level):
+        """Draws the scanner ship using the base class draw method."""
+        super().draw(surface, world_to_screen_func, zoom_level)
 
     def reset_timers(self):
         """Resets the scan timer when state changes."""

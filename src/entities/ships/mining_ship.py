@@ -45,13 +45,15 @@ class MiningShip(Ship):
         if self.admiral is None:
             print(f"ERROR: MiningShip {self.id} has no admiral")
             return
-        
+
         if self.admiral.ships_assignments[self.id] != self.admiral.free_ship_category:
             if resource != self.admiral.ships_assignments[self.id]:
                 print(f"WARN: Ship {self.id} is not assigned to mine {resource}")
                 return
             if self.id not in self.admiral.assignments_ships[resource]:
-                print(f"WARN: Ship {self.id} is not in the list of ships assigned to mine {resource}")
+                print(
+                    f"WARN: Ship {self.id} is not in the list of ships assigned to mine {resource}"
+                )
                 return
         # ---- Set ----
         self.resource_to_mine = resource
@@ -63,7 +65,9 @@ class MiningShip(Ship):
         if self.state == ShipState.MINING:
             # ---- Checks ----
             if self.admiral is None:
-                print(f"ERROR: {self.type} {self.id} in MINING state but has no admiral. Going IDLE.")
+                print(
+                    f"ERROR: {self.type} {self.id} in MINING state but has no admiral. Going IDLE."
+                )
                 return
             if self.resource_to_mine not in ResourceType.list():
                 print(
@@ -72,7 +76,9 @@ class MiningShip(Ship):
                 self.admiral.issue_command(self)
                 return
             if self.target is None or not isinstance(self.target, Asteroid):
-                print(f"WARN: {self.type} {self.id} in MINING state but target is not an Asteroid. Going IDLE.")
+                print(
+                    f"WARN: {self.type} {self.id} in MINING state but target is not an Asteroid. Going IDLE."
+                )
                 self.admiral.issue_command(self)
                 return
 
@@ -84,7 +90,7 @@ class MiningShip(Ship):
             ):
                 max_available = self.target.resources[self.resource_to_mine]
                 can_take = min(free_space, max_available)
-                
+
                 mined_amount = dt * self.mining_rate
                 actual_mined = min(mined_amount, can_take)
 
@@ -93,14 +99,16 @@ class MiningShip(Ship):
                     self.target.resources[self.resource_to_mine] -= actual_mined
                     self.mining_timer = can_take / max(self.mining_rate, constants.EPSILON)
                 else:
-                    print(f"ERROR: {self.type} {self.id} mined 0 {self.resource_to_mine}. This should never happen!")
+                    print(
+                        f"ERROR: {self.type} {self.id} mined 0 {self.resource_to_mine}. This should never happen!"
+                    )
                     self.admiral.issue_command(self)
             else:
                 print(
                     f"DEBUG: {self.type} {self.id} finished mining (Full or Depleted). "
                     f"Returning home."
                 )
-                self.admiral.issue_command(self) # Will set state to RETURNING_TO_BASE
+                self.admiral.issue_command(self)  # Will set state to RETURNING_TO_BASE
 
         elif self.state == ShipState.DUMPING:
             self.dumping_timer += dt
@@ -117,29 +125,27 @@ class MiningShip(Ship):
                 self.dumping_timer = 0.0
 
     def draw(self, surface, world_to_screen_func, zoom_level):
-        # This draw method relies on self.angle
-        screen_pos = world_to_screen_func(self.position)
-        # Use self.radius inherited from Entity/Ship, which was set using constants.MINING_SHIP_SIZE
-        screen_size = max(4, int(self.radius * zoom_level))
+        """Draws the mining ship (diamond) using the base class helper for rotation."""
+        # Calculate screen size using the base class helper
+        screen_radius = self.get_radius_to_draw(zoom_level)
 
-        half_size_x = screen_size * 0.5
-        half_size_y = screen_size * 0.3
-
-        points = [
-            Vector2(-half_size_x, 0),
-            Vector2(0, -half_size_y),
-            Vector2(half_size_x, 0),
-            Vector2(0, half_size_y),
+        # Define diamond points relative to (0,0)
+        half_size_x = screen_radius * 0.5
+        half_size_y = screen_radius * 0.3  # Keep the diamond aspect ratio
+        relative_points = [
+            Vector2(-half_size_x, 0),  # Left point
+            Vector2(0, -half_size_y),  # Top point
+            Vector2(half_size_x, 0),  # Right point
+            Vector2(0, half_size_y),  # Bottom point
         ]
 
-        rotated_points = []
-        for p in points:
-            # Assumes self.angle exists (will add to base Ship)
-            rotated_p = p.rotate_rad(self.angle)
-            screen_p = screen_pos + rotated_p
-            rotated_points.append(screen_p)
+        # Calculate final screen points using the base class helper
+        screen_points = self._calculate_rotated_screen_points(
+            relative_points, world_to_screen_func, zoom_level
+        )
 
-        pygame.draw.polygon(surface, self.color, rotated_points)
+        # Draw the polygon
+        pygame.draw.polygon(surface, self.color, screen_points)
 
     def reset_timers(self):
         """Resets mining and dumping timers when state changes."""

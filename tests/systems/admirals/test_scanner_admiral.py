@@ -339,6 +339,58 @@ def test_assign_idle_scanners_no_suitable_target(mock_find_nearest, scanner_admi
     mock_scanner.set_target.assert_not_called()
     mock_scanner.set_state.assert_not_called()
 
+def test_assign_idle_scanners_multiple_idle_avoid_same_target(scanner_admiral):
+    """Test that multiple idle scanners don't target the same asteroid in one cycle."""
+    # Setup: Two idle scanners close to each other
+    idle_scanner1 = MockScannerShip(ship_id=201, state=ShipState.IDLE, position=Vector2(0, 0))
+    idle_scanner2 = MockScannerShip(ship_id=202, state=ShipState.IDLE, position=Vector2(1, 1)) # Slightly offset
+
+    # One close, desirable asteroid, and one farther one
+    close_asteroid = MockAsteroid(asteroid_id=1001, position=Vector2(10, 0), scanned=False)
+    far_asteroid = MockAsteroid(asteroid_id=1002, position=Vector2(100, 0), scanned=False)
+
+    scanner_admiral.add_ship(idle_scanner1)
+    scanner_admiral.add_ship(idle_scanner2)
+
+    asteroids = [close_asteroid, far_asteroid]
+
+    idle_scanner1.set_state.reset_mock()
+    idle_scanner1.set_target.reset_mock()
+    idle_scanner2.set_state.reset_mock()
+    idle_scanner2.set_target.reset_mock()
+
+    # Act: Assign tasks
+    scanner_admiral.assign_idle_scanners(asteroids)
+
+    # Assertions:
+    # We expect one scanner to get the close asteroid, the other to get the far one (or none if only one existed)
+    # We don't know the iteration order, so check which scanner got which target.
+
+    scanner1_target_call = idle_scanner1.set_target.call_args
+    scanner2_target_call = idle_scanner2.set_target.call_args
+
+    # Check that set_target was called exactly once for each scanner
+    idle_scanner1.set_target.assert_called_once()
+    idle_scanner2.set_target.assert_called_once()
+
+    # Get the actual target objects they were called with
+    scanner1_assigned_target = scanner1_target_call[0][0] if scanner1_target_call else None
+    scanner2_assigned_target = scanner2_target_call[0][0] if scanner2_target_call else None
+
+    # Ensure they were assigned different targets
+    assert scanner1_assigned_target is not None, "Scanner 1 should have been assigned a target"
+    assert scanner2_assigned_target is not None, "Scanner 2 should have been assigned a target"
+    assert scanner1_assigned_target is not scanner2_assigned_target, "Scanners should not target the same asteroid"
+
+    # Verify they were assigned the two available asteroids
+    assigned_targets = {scanner1_assigned_target, scanner2_assigned_target}
+    expected_targets = {close_asteroid, far_asteroid}
+    assert assigned_targets == expected_targets, "Scanners were not assigned the expected set of asteroids"
+
+    # Verify both states were set correctly
+    idle_scanner1.set_state.assert_called_once_with(ShipState.MOVING_TO_SCAN)
+    idle_scanner2.set_state.assert_called_once_with(ShipState.MOVING_TO_SCAN)
+
 # --- Tests for _find_nearest_unscanned_asteroid --- #
 # Note: This partially duplicates tests.utils.test_find_nearest_object, but tests the filter logic.
 

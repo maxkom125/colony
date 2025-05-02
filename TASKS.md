@@ -121,10 +121,16 @@
 - Dependencies: 8 # Depends on basic Scan action/AI
 
 ## Task ID: 21
-- Status: TODO
+- Status: DONE
 - Description: Add new conftest: check if admirals remove ship is called only from fleet class! ( to maintain consistency)
 - Priority: High
 - Dependencies: None
+
+## Task ID: 22
+- Status: DONE
+- Description: Fix scanner ship rotation. Ensure it correctly faces its direction of movement.
+- Priority: High
+- Dependencies: 6
 
 ## TODO: FIX scanner inide asteroid: scan radius < radius!
 ## TODO: FIX random miner stops when returning to base and assigned to new category

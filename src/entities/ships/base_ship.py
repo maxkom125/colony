@@ -40,7 +40,7 @@ class Ship(Entity):
         self.type = ShipType.UNKNOWN
         self.angle = 0.0  # Add angle property, default to 0 rad
 
-        self.admiral: 'Admiral' | None = None  # Will be set when added to fleet
+        self.admiral: "Admiral" | None = None  # Will be set when added to fleet
 
         # Timers - may or may not be used by all subclasses
         self.scan_timer = 0.0
@@ -109,20 +109,38 @@ class Ship(Entity):
         """Resets timers when state changes. Base class does nothing."""
         pass
 
-    def draw(self, surface, world_to_screen_func, zoom_level):
-        """Draws the ship as a simple triangle."""
+    def _calculate_rotated_screen_points(
+        self, relative_points: list[Vector2], world_to_screen_func, zoom_level
+    ) -> list[Vector2]:
+        """Helper to calculate rotated and translated screen points for drawing."""
         screen_pos = world_to_screen_func(self.position)
-        screen_radius = max(3, int(self.radius * zoom_level))  # Ensure minimum size
+        rotated_screen_points = []
+        for p_rel in relative_points:
+            # Rotate point around (0,0) using self.angle
+            p_rot = p_rel.rotate_rad(self.angle)
+            # Translate rotated point to screen position
+            p_screen = screen_pos + p_rot
+            rotated_screen_points.append(p_screen)
+        return rotated_screen_points
 
-        # Triangle points based on position, angle (0 for base ship), and screen radius
-        # Pointing right by default if angle is 0
-        p1 = screen_pos + Vector2(screen_radius, 0)
-        p2 = screen_pos + Vector2(-screen_radius * 0.5, screen_radius * 0.87)  # approx sqrt(3)/2
-        p3 = screen_pos + Vector2(-screen_radius * 0.5, -screen_radius * 0.87)
+    def get_radius_to_draw(self, zoom_level) -> int:
+        """Helper to get the radius to draw for the ship."""
+        return max(3, int(self.radius * zoom_level))
 
-        # Rotation would be needed if ships have an angle property
-        # angle_rad = math.radians(self.angle) # If angle exists
-        # p1 = screen_pos + Vector2(screen_radius, 0).rotate_rad(angle_rad)
-        # ... rotate p2, p3 ...
+    def draw(self, surface, world_to_screen_func, zoom_level):
+        """Draws the base ship shape (triangle) using the helper method."""
+        screen_radius = self.get_radius_to_draw(zoom_level)
 
-        pygame.draw.polygon(surface, self.color, [p1, p2, p3])
+        # Define base triangle points relative to (0,0)
+        p1_rel = Vector2(screen_radius, 0)
+        p2_rel = Vector2(-screen_radius * 0.6, screen_radius * 0.7)
+        p3_rel = Vector2(-screen_radius * 0.6, -screen_radius * 0.7)
+        relative_points = [p1_rel, p2_rel, p3_rel]
+
+        # Calculate final screen points using the helper
+        screen_points = self._calculate_rotated_screen_points(
+            relative_points, world_to_screen_func, zoom_level
+        )
+
+        # Draw the polygon
+        pygame.draw.polygon(surface, self.color, screen_points)

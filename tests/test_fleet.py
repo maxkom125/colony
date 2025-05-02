@@ -85,3 +85,51 @@ def test_get_ships_by_type(fleet_with_ships):
     assert len(miners) == 3
     assert all(isinstance(m, MiningShip) for m in miners)
     assert len(baseships) == len(initial_ships)
+
+def test_fleet_admiral_consistency(home_planet_fixture):
+    """Verify consistency between Fleet ships and Admiral ships after adds/removes."""
+    fleet = Fleet()
+
+    # Create ships
+    s1 = ScannerShip(Vector2(10, 10), home_planet=home_planet_fixture)
+    s2 = ScannerShip(Vector2(15, 15), home_planet=home_planet_fixture)
+    m1 = MiningShip(Vector2(20, 20), home_planet=home_planet_fixture)
+    m2 = MiningShip(Vector2(25, 25), home_planet=home_planet_fixture)
+    m3 = MiningShip(Vector2(30, 30), home_planet=home_planet_fixture)
+
+    # Add ships
+    fleet.add_ship(s1)
+    fleet.add_ship(s2)
+    fleet.add_ship(m1)
+    fleet.add_ship(m2)
+    fleet.add_ship(m3)
+
+    # Initial check (optional but good practice)
+    fleet_scanner_ids_init = {s.id for s in fleet.ships.values() if isinstance(s, ScannerShip)}
+    fleet_miner_ids_init = {s.id for s in fleet.ships.values() if isinstance(s, MiningShip)}
+    assert fleet_scanner_ids_init == set(fleet.scanner_admiral.ships.keys()), "Initial scanner inconsistency"
+    assert fleet_miner_ids_init == set(fleet.miner_admiral.ships.keys()), "Initial miner inconsistency"
+
+    # Remove one of each type
+    fleet.remove_ship(s1.id)
+    fleet.remove_ship(m2.id)
+
+    # Final check
+    fleet_scanner_ids_final = {s.id for s in fleet.ships.values() if isinstance(s, ScannerShip)}
+    fleet_miner_ids_final = {s.id for s in fleet.ships.values() if isinstance(s, MiningShip)}
+    scanner_admiral_ids_final = set(fleet.scanner_admiral.ships.keys())
+    miner_admiral_ids_final = set(fleet.miner_admiral.ships.keys())
+
+    print(f"Final Fleet Scanners: {fleet_scanner_ids_final}")
+    print(f"Final Scanner Admiral: {scanner_admiral_ids_final}")
+    print(f"Final Fleet Miners: {fleet_miner_ids_final}")
+    print(f"Final Miner Admiral: {miner_admiral_ids_final}")
+
+    assert fleet_scanner_ids_final == scanner_admiral_ids_final, "Final scanner inconsistency after remove"
+    assert fleet_miner_ids_final == miner_admiral_ids_final, "Final miner inconsistency after remove"
+
+    # Double check the reverse (all admiral ships are in fleet)
+    # This is implicitly covered by the above checks if sets are equal,
+    # but can be added for extra clarity if needed.
+    assert all(sid in fleet.ships for sid in scanner_admiral_ids_final), "Scanner admiral ship not in fleet"
+    assert all(mid in fleet.ships for mid in miner_admiral_ids_final), "Miner admiral ship not in fleet"
