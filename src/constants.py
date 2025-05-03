@@ -68,7 +68,7 @@ BASE_ACTION_TIME_UNIT = 1.0  # Base seconds for actions like mining (before mult
 # Scan Time
 # SCAN_TIME_PER_RADIUS_UNIT = 0.05 # Old way: Seconds per world unit of asteroid radius
 SCAN_DURATION = 3.0  # Fixed time in seconds to scan an asteroid
-SCANNER_SCAN_RANGE = 30.0
+SCANNER_SCAN_RANGE = 40.0
 
 # --- Scanning Logic ---
 SCANNER_SCAN_RATE = 20.0  # "Scan points" per second

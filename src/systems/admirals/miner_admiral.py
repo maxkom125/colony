@@ -136,9 +136,11 @@ class MinerAdmiral(Admiral):
     def update_ship_assignment(self, ship_id: int, category: str | None):
         """Updates the assignment of a ship to a category."""
         current_assignment = self.ships_assignments[ship_id]
+        ship = self.ships[ship_id]  # Get the ship object
 
-        self.ships[ship_id].set_state(ShipState.IDLE)
-        self.ships[ship_id].target = None
+        ship.set_state(ShipState.IDLE)
+        ship.set_target(None)
+
         if current_assignment == category:
             # This should happen only in add_ship
             return
@@ -146,7 +148,7 @@ class MinerAdmiral(Admiral):
         # clean up old assignment
         self.assignments_ships[current_assignment].remove(ship_id)
         self.ships_assignments[ship_id] = None
-        self.ships[ship_id].set_resource_to_mine(None)
+        ship.set_resource_to_mine(None)
 
         # assign new category
         if category:
@@ -191,16 +193,19 @@ class MinerAdmiral(Admiral):
         # ---- Dumping ----
         print(f"DEBUG: Miner {ship.id} arrived at Planet {ship.target.id}. Starting dump.")
         ship.set_state(ShipState.DUMPING)
-        ship.dumping_timer = 0.0 # TODO: set timer here, depending on resource amount, make decreasing
+        ship.dumping_timer = (
+            0.0  # TODO: set timer here, depending on resource amount, make decreasing
+        )
         # TODO: load fuel here
         # Reset target??
-            
 
     def issue_moving_to_asteroid_command(self, ship: MiningShip):
         """Issue a moving to asteroid command to a ship."""
         # ---- Checks ----
         if ship.target is None or not isinstance(ship.target, Asteroid):
-            print(f"ERROR: Miner {ship.id} target is not an Asteroid, moving to asteroid command issued. This should never happen!")
+            print(
+                f"ERROR: Miner {ship.id} target is not an Asteroid, moving to asteroid command issued. This should never happen!"
+            )
             return
 
         # ---- Moving to asteroid ----
@@ -213,33 +218,55 @@ class MinerAdmiral(Admiral):
         # ---- Checks ----
         # TODO: more checks
         if ship.target is None:
-            print(f"ERROR: Miner {ship.id} has no target, mining command issued. This should never happen!")
+            print(
+                f"ERROR: Miner {ship.id} has no target, mining command issued. This should never happen!"
+            )
             return
-        if not isinstance(ship.target, Asteroid):           
+        if not isinstance(ship.target, Asteroid):
             print(
                 f"WARN: Miner {self.id} arrived at unknown target type {type(self.target)}. Going IDLE."
             )
             return
         if not ship.target.scanned:
-            print(f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because it is not scanned. This should never happen!")
+            print(
+                f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because it is not scanned. This should never happen!"
+            )
             return
         if ship.get_cargo_total() >= ship.cargo_capacity:
-            print(f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because its cargo is full. This should never happen!")
+            print(
+                f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because its cargo is full. This should never happen!"
+            )
             return
         # check if ship really arrived at asteroid
-        if (ship.position.distance_to(ship.target.position) - ship.get_arrival_threshold()) > constants.EPSILON:
-            print(f"ERROR: Miner {ship.id} has not arrived at target, mining command issued. This should never happen!")
+        if (
+            ship.position.distance_to(ship.target.position) - ship.get_arrival_threshold()
+        ) > constants.EPSILON:
+            print(
+                f"ERROR: Miner {ship.id} has not arrived at target, mining command issued. This should never happen!"
+            )
             return
 
         assigned_category = self.ships_assignments[ship.id]
         if assigned_category is None:
-            print(f"ERROR: Miner {ship.id} has no assigned category, mining command issued. This should never happen!")
+            print(
+                f"ERROR: Miner {ship.id} has no assigned category, mining command issued. This should never happen!"
+            )
             return
-        if assigned_category not in ResourceType.list() and assigned_category != self.free_ship_category:
-            print(f"ERROR: Miner {ship.id} has invalid assigned category {assigned_category}, mining command issued. This should never happen!")
+        if (
+            assigned_category not in ResourceType.list()
+            and assigned_category != self.free_ship_category
+        ):
+            print(
+                f"ERROR: Miner {ship.id} has invalid assigned category {assigned_category}, mining command issued. This should never happen!"
+            )
             return
-        if assigned_category != self.free_ship_category and ship.target.resources.get(assigned_category, 0) <= 0:
-            print(f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because it has no {assigned_category}. This should never happen!")
+        if (
+            assigned_category != self.free_ship_category
+            and ship.target.resources.get(assigned_category, 0) <= 0
+        ):
+            print(
+                f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because it has no {assigned_category}. This should never happen!"
+            )
             return
         # ---- Mining ----
         ship.set_state(ShipState.MINING)
@@ -263,6 +290,7 @@ class MinerAdmiral(Admiral):
                 # Check cargo isn't full - if so, send to base
                 if miner.get_cargo_total() >= miner.cargo_capacity:
                     miner.set_target(miner.home)
+                    miner.set_state(ShipState.RETURNING_TO_BASE)
                     continue  # Move to next miner
                 idle_miners.append(ship_id)
 
@@ -279,7 +307,9 @@ class MinerAdmiral(Admiral):
         category = self.ships_assignments[ship_id]
 
         # Find target
-        target_asteroid, resource_to_mine = self._find_target_for_category(miner, category, asteroids)
+        target_asteroid, resource_to_mine = self._find_target_for_category(
+            miner, category, asteroids
+        )
         if target_asteroid:
             miner.set_target(target_asteroid)
             miner.set_state(ShipState.MOVING_TO_ASTEROID)

@@ -133,13 +133,13 @@
 - Dependencies: 6
 
 ## Task ID: 23
-- Status: TODO
+- Status: DONE
 - Description: Prevent scanners from scanning asteroids larger than their scan range. Modify `ScannerAdmiral` to check `asteroid.radius < scanner.scan_range` before assigning scan targets.
 - Priority: High
 - Dependencies: 8, 20
 
 ## Task ID: 24
-- Status: TODO
+- Status: DONE
 - Description: Investigate and fix bug where `MiningShip` might get stuck or assigned incorrectly when returning to base and receiving new orders immediately.
 - Priority: High
 - Dependencies: 10, 18
