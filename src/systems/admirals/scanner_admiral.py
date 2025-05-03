@@ -117,6 +117,26 @@ class ScannerAdmiral(Admiral):
         )
         pass  # Primary assignment logic is in assign_idle_scanners
 
+    def _get_valid_scan_targets(self, asteroids: list[Asteroid]):
+        """Find out relevant scan targets.
+        Relevant targets MUST BE:
+        1. Asteroid instance
+        2. Unscanned
+        3. Not targeted by other scanners"""
+
+        # Get IDs of asteroids currently targeted by scanners
+        currently_targeted_ids = {
+            ship.target.id
+            for ship in self.ships.values()
+            if ship.target and isinstance(ship.target, Asteroid)
+        }
+
+        return [
+            a
+            for a in asteroids
+            if isinstance(a, Asteroid) and (not a.scanned) and (a.id not in currently_targeted_ids)
+        ]
+
     def assign_idle_scanners(self, asteroids: list[Asteroid]):
         """Assigns unscanned asteroids to idle scanners, avoiding already targeted ones."""
         idle_scanners: list[ScannerShip] = [
@@ -126,26 +146,18 @@ class ScannerAdmiral(Admiral):
         if not idle_scanners:
             return  # No idle scanners to assign
 
-        unscanned_asteroids: list[Asteroid] = [
-            a for a in asteroids if isinstance(a, Asteroid) and not a.scanned
-        ]
+        asteroids_to_scan = self._get_valid_scan_targets(asteroids)
 
-        # Get IDs of asteroids currently targeted by scanners
-        currently_targeted_ids = {
-            ship.target.id
-            for ship in self.ships.values()
-            if ship.target and isinstance(ship.target, Asteroid)
-        }
-        if not unscanned_asteroids:
-            print("DEBUG: No unscanned asteroids left!")
+        if not asteroids_to_scan:
+            print("DEBUG: No asteroids possible to scan!")
             return
 
         # Improved assignment: nearest unscanned AND untargeted asteroid
         for scanner in idle_scanners:
-            target_asteroid = self._find_nearest_unscanned_asteroid(
+            target_asteroid = self._find_nearest_valid_asteroid(
                 scanner.position,
-                unscanned_asteroids,
-                currently_targeted_ids,  # Pass the set of already targeted asteroids
+                scanner.scan_range - scanner.radius,
+                asteroids_to_scan,
             )
 
             if target_asteroid:
@@ -155,24 +167,22 @@ class ScannerAdmiral(Admiral):
                 scanner.set_state(ShipState.MOVING_TO_SCAN)
                 # Add the newly assigned target to the set immediately
                 # to prevent other idle scanners in *this* cycle from picking it.
-                currently_targeted_ids.add(target_asteroid.id)
+                asteroids_to_scan.remove(target_asteroid)
                 print(f"DEBUG: Scanner {scanner.id} assigned to scan Asteroid {target_asteroid.id}")
             else:
-                # No available unscanned & untargeted asteroids left
+                # No available unscanned & untargeted & small enough asteroids left
                 print(f"DEBUG: No suitable untargeted scan target found for Scanner {scanner.id}.")
                 # Scanner remains IDLE
 
-    def _find_nearest_unscanned_asteroid(
-        self, position: Vector2, asteroids: list[Asteroid], excluded_ids: set[int]
+    def _find_nearest_valid_asteroid(
+        self,
+        position: Vector2,
+        max_radius: float,
+        asteroids: list[Asteroid],
     ) -> Asteroid | None:
-        """Finds the nearest unscanned asteroid, excluding specific IDs."""
+        """Finds the nearest asteroid, with radius < max_radius"""
 
         def target_filter(asteroid):
-            # Must be an Asteroid, not scanned, and not in the excluded set
-            return (
-                isinstance(asteroid, Asteroid)
-                and not asteroid.scanned
-                and asteroid.id not in excluded_ids  # Use the passed set
-            )
+            return asteroid.radius <= max_radius
 
         return find_nearest_object(position, asteroids, target_filter)

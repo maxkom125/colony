@@ -132,5 +132,14 @@
 - Priority: High
 - Dependencies: 6
 
-## TODO: FIX scanner inide asteroid: scan radius < radius!
-## TODO: FIX random miner stops when returning to base and assigned to new category
+## Task ID: 23
+- Status: TODO
+- Description: Prevent scanners from scanning asteroids larger than their scan range. Modify `ScannerAdmiral` to check `asteroid.radius < scanner.scan_range` before assigning scan targets.
+- Priority: High
+- Dependencies: 8, 20
+
+## Task ID: 24
+- Status: TODO
+- Description: Investigate and fix bug where `MiningShip` might get stuck or assigned incorrectly when returning to base and receiving new orders immediately.
+- Priority: High
+- Dependencies: 10, 18

@@ -13,13 +13,6 @@ from src.entities.asteroid import Asteroid
 from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
 
-# Import the enum
-from src.enums import ShipState
-
-# from src.utils import find_nearest_asteroid # No longer needed here directly
-# Import system modules
-from src.systems import ai_system  # Import from new location
-from src.systems import movement_system  # Import from new location
 from src.systems import construction_system  # Import the new construction system
 from src import hud  # Import the renamed hud module
 from src.rendering import renderer  # Import the new renderer module
@@ -27,18 +20,6 @@ from src.camera.camera import Camera  # Import the new Camera class
 
 # Import Fleet
 from src.fleet import Fleet
-
-# --- Global Camera State --- (REMOVED)
-# camera_offset = Vector2(0, 0)
-# zoom_level = 1.0
-
-# from src.enums import ShipState # Keep this import
-
-# --- Helper Functions ---
-# (Coordinate helpers moved to renderer.py)
-
-# --- Game Logic Helpers (Defined within main scope or separate module) ---
-# (try_build_ship moved inside main())
 
 
 def main():
@@ -75,9 +56,6 @@ def main():
 
     # --- Create Camera Instance ---
     camera = Camera()
-
-    # --- Game State Variables ---
-    # (removed target assignments)
 
     # --- Calculate UI element rects once (using the actual font) ---
     scanner_button_rect, miner_button_rect = hud.get_construction_button_rects(ui_font)

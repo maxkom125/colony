@@ -38,12 +38,16 @@ class MockScannerShip(MagicMock):
         self.set_target = MagicMock()
         self.set_state = MagicMock()
         self.name = f"MockScanner_{self.id}" # For debugging
+        if 'radius' not in kwargs:
+            self.radius = constants.SHIP_SIZE
+        else:
+            self.radius = kwargs['radius']
 
 
 class MockAsteroid(MagicMock):
     _next_id = 1000
 
-    def __init__(self, asteroid_id=None, position=Vector2(10, 10), scanned=False, radius=10, resources=None, **kwargs):
+    def __init__(self, asteroid_id=None, position=Vector2(10, 10), scanned=False, radius=8, resources=None, **kwargs):
         super().__init__(spec=Asteroid, **kwargs)
         if asteroid_id is not None:
             self.id = asteroid_id
@@ -244,11 +248,11 @@ def test_issue_scanning_command_invalid_target_goes_idle(scanner_admiral, mock_s
 
 # --- Tests for assign_idle_scanners --- #
 
-@patch("src.systems.admirals.scanner_admiral.ScannerAdmiral._find_nearest_unscanned_asteroid")
+@patch("src.systems.admirals.scanner_admiral.ScannerAdmiral._find_nearest_valid_asteroid")
 def test_assign_idle_scanners_assigns_nearest(mock_find_nearest, scanner_admiral):
     """Test assigning an idle scanner to the nearest unscanned asteroid."""
-    idle_scanner = MockScannerShip(ship_id=201, state=ShipState.IDLE, position=Vector2(0,0))
-    moving_scanner = MockScannerShip(ship_id=202, state=ShipState.MOVING_TO_SCAN, position=Vector2(500,500))
+    idle_scanner = MockScannerShip(ship_id=201, state=ShipState.IDLE, position=Vector2(0,0), radius=constants.SHIP_SIZE, scan_range=constants.SCANNER_SCAN_RANGE)
+    moving_scanner = MockScannerShip(ship_id=202, state=ShipState.MOVING_TO_SCAN, position=Vector2(500,500), radius=constants.SHIP_SIZE + 1, scan_range=constants.SCANNER_SCAN_RANGE)
     target_asteroid = MockAsteroid(asteroid_id=1001, position=Vector2(10,0), scanned=False)
     other_asteroid = MockAsteroid(asteroid_id=1002, position=Vector2(100,0), scanned=False)
     # Add a targeted asteroid to ensure exclusion logic works
@@ -277,13 +281,11 @@ def test_assign_idle_scanners_assigns_nearest(mock_find_nearest, scanner_admiral
     # Check position (args[0])
     assert actual_args[0] == idle_scanner.position, "Incorrect position passed to mock"
 
-    # Check the list of asteroids (args[1]) using set comparison
-    # This verifies the same elements are present, regardless of order.
-    assert set(actual_args[1]) == set(asteroids), "Incorrect set of asteroids passed to mock"
+    assert actual_args[1] == constants.SCANNER_SCAN_RANGE - idle_scanner.radius, "Incorrect max radius passed to mock"
 
-    # Check the set of excluded IDs (args[2])
-    # target asteroid is appended!
-    assert set(actual_args[2]) == set([targeted_asteroid.id, target_asteroid.id]), "Incorrect set of excluded IDs passed to mock"
+    # Check the list of asteroids (args[2]) using set comparison
+    # This verifies the same elements are present, regardless of order.
+    assert set(actual_args[2]) == set([other_asteroid]), "Incorrect set of asteroids passed to mock or target is not excluded afterwards"
     # --- End Custom Verification --- 
 
     # Verify the idle scanner was assigned the target and state changed
@@ -314,16 +316,18 @@ def test_assign_idle_scanners_no_unscanned(scanner_admiral, mock_scanner):
 
     # Patch the helper to ensure it's not called unnecessarily,
     # although the main function might filter asteroids list first.
-    with patch("src.systems.admirals.scanner_admiral.ScannerAdmiral._find_nearest_unscanned_asteroid") as mock_find:
+    with patch("src.systems.admirals.scanner_admiral.ScannerAdmiral._find_nearest_valid_asteroid") as mock_find:
         scanner_admiral.assign_idle_scanners(asteroids)
         mock_find.assert_not_called() # Helper shouldn't be called if unscanned list is empty
 
     mock_scanner.set_target.assert_not_called()
     mock_scanner.set_state.assert_not_called()
 
-@patch("src.systems.admirals.scanner_admiral.ScannerAdmiral._find_nearest_unscanned_asteroid")
+@patch("src.systems.admirals.scanner_admiral.ScannerAdmiral._find_nearest_valid_asteroid")
 def test_assign_idle_scanners_no_suitable_target(mock_find_nearest, scanner_admiral, mock_scanner):
     """Test assign_idle_scanners does nothing if _find_nearest returns None."""
+    mock_scanner.radius = constants.SHIP_SIZE
+    mock_scanner.scan_range = constants.SCANNER_SCAN_RANGE
     scanner_admiral.add_ship(mock_scanner) # Idle scanner
     mock_scanner.set_target.reset_mock()
     mock_scanner.set_state.reset_mock()
@@ -342,8 +346,8 @@ def test_assign_idle_scanners_no_suitable_target(mock_find_nearest, scanner_admi
 def test_assign_idle_scanners_multiple_idle_avoid_same_target(scanner_admiral):
     """Test that multiple idle scanners don't target the same asteroid in one cycle."""
     # Setup: Two idle scanners close to each other
-    idle_scanner1 = MockScannerShip(ship_id=201, state=ShipState.IDLE, position=Vector2(0, 0))
-    idle_scanner2 = MockScannerShip(ship_id=202, state=ShipState.IDLE, position=Vector2(1, 1)) # Slightly offset
+    idle_scanner1 = MockScannerShip(ship_id=201, state=ShipState.IDLE, position=Vector2(0, 0), radius=constants.SHIP_SIZE, scan_range=constants.SCANNER_SCAN_RANGE)
+    idle_scanner2 = MockScannerShip(ship_id=202, state=ShipState.IDLE, position=Vector2(1, 1), radius=constants.SHIP_SIZE, scan_range=constants.SCANNER_SCAN_RANGE)
 
     # One close, desirable asteroid, and one farther one
     close_asteroid = MockAsteroid(asteroid_id=1001, position=Vector2(10, 0), scanned=False)
@@ -391,51 +395,116 @@ def test_assign_idle_scanners_multiple_idle_avoid_same_target(scanner_admiral):
     idle_scanner1.set_state.assert_called_once_with(ShipState.MOVING_TO_SCAN)
     idle_scanner2.set_state.assert_called_once_with(ShipState.MOVING_TO_SCAN)
 
-# --- Tests for _find_nearest_unscanned_asteroid --- #
-# Note: This partially duplicates tests.utils.test_find_nearest_object, but tests the filter logic.
-
 def test_find_nearest_unscanned_finds_closest(scanner_admiral):
     source_pos = Vector2(0, 0)
-    a_near = MockAsteroid(position=(10, 0), scanned=False, asteroid_id=101)
-    a_far = MockAsteroid(position=(100, 0), scanned=False, asteroid_id=102)
-    a_scanned = MockAsteroid(position=(5, 0), scanned=True, asteroid_id=103) # Closer but scanned
-    a_excluded = MockAsteroid(position=(1, 0), scanned=False, asteroid_id=104) # Closest but excluded
-    asteroids = [a_far, a_near, a_scanned, a_excluded]
-    excluded_ids = {104}
+    a_near = MockAsteroid(position=(10, 0), scanned=False, asteroid_id=101, radius=10)
+    a_far = MockAsteroid(position=(100, 0), scanned=False, asteroid_id=102, radius=20)
+    a_scanned = MockAsteroid(position=(5, 0), scanned=True, asteroid_id=103, radius=5)
+    a_irrelevant = Planet(position=(1, 0)) # Closest but excluded
+    a_too_large = MockAsteroid(position=(2, 0), scanned=False, asteroid_id=105, radius=100) # Close but too large
+    a_targeted = MockAsteroid(position=(3, 0), scanned=False, asteroid_id=106, radius=10)
 
-    nearest = scanner_admiral._find_nearest_unscanned_asteroid(source_pos, asteroids, excluded_ids)
+    scanner_ship = MockScannerShip()
+    scanner_admiral.ships = {scanner_ship.id: scanner_ship}
+    scanner_ship.target = a_targeted
+
+    asteroids = [a_far, a_near, a_scanned, a_irrelevant, a_too_large]
+    max_radius = 50 # Example max radius
+
+    asteroids = scanner_admiral._get_valid_scan_targets(asteroids)
+    assert set(asteroids) == set([a_far, a_near, a_too_large])
+
+    nearest = scanner_admiral._find_nearest_valid_asteroid(source_pos, max_radius, asteroids)
     assert nearest is a_near
 
-def test_find_nearest_unscanned_ignores_scanned(scanner_admiral):
-    source_pos = Vector2(0, 0)
+def test_get_valid_scan_targets_ignores_scanned(scanner_admiral):
     a_far_unscanned = MockAsteroid(position=(100, 0), scanned=False, asteroid_id=101)
     a_near_scanned = MockAsteroid(position=(10, 0), scanned=True, asteroid_id=102)
     asteroids = [a_far_unscanned, a_near_scanned]
-    excluded_ids = set()
-    nearest = scanner_admiral._find_nearest_unscanned_asteroid(source_pos, asteroids, excluded_ids)
-    assert nearest is a_far_unscanned
 
-def test_find_nearest_unscanned_ignores_excluded(scanner_admiral):
-    source_pos = Vector2(0, 0)
+    asteroids = scanner_admiral._get_valid_scan_targets(asteroids)
+    assert len(asteroids) == 1
+    assert asteroids[0] is a_far_unscanned
+
+def test_get_valid_scan_targets_ignores_targeted(scanner_admiral):
     a_far_unscanned = MockAsteroid(position=(100, 0), scanned=False, asteroid_id=101)
-    a_near_excluded = MockAsteroid(position=(10, 0), scanned=False, asteroid_id=102)
-    asteroids = [a_far_unscanned, a_near_excluded]
-    excluded_ids = {102}
-    nearest = scanner_admiral._find_nearest_unscanned_asteroid(source_pos, asteroids, excluded_ids)
-    assert nearest is a_far_unscanned
+    a_targeted = MockAsteroid(position=(10, 0), scanned=False, asteroid_id=102)
+
+    scanner_ship = MockScannerShip()
+    scanner_admiral.ships = {scanner_ship.id: scanner_ship}
+    scanner_ship.target = a_targeted
+
+    asteroids = [a_far_unscanned, a_targeted]
+
+    asteroids = scanner_admiral._get_valid_scan_targets(asteroids)
+    assert len(asteroids) == 1
+    assert asteroids[0] is a_far_unscanned
+
+def test_find_nearest_valid_ignores_too_large(scanner_admiral):
+    """Test that asteroids larger than max_radius are ignored."""
+    source_pos = Vector2(0, 0)
+    a_small_far = MockAsteroid(position=(100, 0), scanned=False, asteroid_id=101, radius=20)
+    a_large_near = MockAsteroid(position=(10, 0), scanned=False, asteroid_id=102, radius=60)
+    asteroids = [a_small_far, a_large_near]
+    max_radius = 50 # a_large_near is > max_radius
+
+    nearest = scanner_admiral._find_nearest_valid_asteroid(source_pos, max_radius, asteroids)
+    assert nearest is a_small_far
 
 def test_find_nearest_unscanned_no_match(scanner_admiral):
     source_pos = Vector2(0, 0)
-    a_scanned = MockAsteroid(position=(10, 0), scanned=True, asteroid_id=101)
-    a_excluded = MockAsteroid(position=(5, 0), scanned=False, asteroid_id=102)
-    asteroids = [a_scanned, a_excluded]
-    excluded_ids = {102}
-    nearest = scanner_admiral._find_nearest_unscanned_asteroid(source_pos, asteroids, excluded_ids)
+    a_too_large = MockAsteroid(position=(2, 0), scanned=False, radius=100, asteroid_id=103)
+    asteroids = [a_too_large]
+    max_radius = 50
+
+    nearest = scanner_admiral._find_nearest_valid_asteroid(source_pos, max_radius, asteroids)
     assert nearest is None
 
 def test_find_nearest_unscanned_empty_list(scanner_admiral):
     source_pos = Vector2(0, 0)
     asteroids = []
-    excluded_ids = set()
-    nearest = scanner_admiral._find_nearest_unscanned_asteroid(source_pos, asteroids, excluded_ids)
-    assert nearest is None 
+    max_radius = 50
+
+    nearest = scanner_admiral._find_nearest_valid_asteroid(source_pos, max_radius, asteroids)
+    assert nearest is None
+
+def test_assign_idle_scanners_sets_target(scanner_admiral):
+    """Verify scanners aren't assigned asteroids larger than their scan range."""
+    scanner = MockScannerShip(id=1, position=Vector2(100, 100), state=ShipState.IDLE, radius=constants.SHIP_SIZE)
+    scanner_admiral.add_ship(scanner)
+
+    # Asteroid smaller than scan range (default 100)
+    small_asteroid = MockAsteroid(id=1, position=Vector2(150, 100), scanned=False, radius=constants.SCANNER_SCAN_RANGE - 1 - scanner.radius)
+    # Asteroid larger than scan range
+    large_asteroid = MockAsteroid(id=2, position=Vector2(110, 100), scanned=False, radius=constants.SCANNER_SCAN_RANGE + 1 - scanner.radius)
+
+    all_asteroids = [small_asteroid, large_asteroid]
+
+    scanner_admiral.assign_idle_scanners(all_asteroids)
+
+
+    # Assert that the ship was commanded to move to the SMALL asteroid
+    scanner.set_target.assert_called_once_with(small_asteroid)
+    scanner.set_state.assert_called_once_with(ShipState.MOVING_TO_SCAN)
+
+def test_assign_idle_scanners_no_valid_targets(scanner_admiral):
+    """Test assignment when no valid targets exist (all scanned or too large)."""
+    # Create an idle scanner
+    scanner = MockScannerShip(id=1, position=Vector2(0, 0), state=ShipState.IDLE)
+    scanner_admiral.add_ship(scanner)
+
+    # Create asteroids that are all scanned or too large
+    scanned_asteroid = MockAsteroid(id=1, position=Vector2(100, 0), scanned=True, radius=50)
+    large_asteroid = MockAsteroid(id=2, position=Vector2(0, 100), scanned=False, radius=constants.SCANNER_SCAN_RANGE + 10)
+
+    all_asteroids = [scanned_asteroid, large_asteroid]
+
+    scanner_admiral.assign_idle_scanners(all_asteroids)
+
+    # Assert that the ship was NOT commanded (no calls to set_target or set_state)
+    scanner.set_target.assert_not_called()
+    scanner.set_state.assert_not_called()
+    assert scanner.state == ShipState.IDLE # Remains idle
+
+    # Test assigning to nearest valid target (including radius check)
+    assert scanner.target is None
