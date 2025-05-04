@@ -14,12 +14,14 @@ from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
 
 from src.systems import construction_system  # Import the new construction system
-from src import hud  # Import the renamed hud module
 from src.rendering import renderer  # Import the new renderer module
 from src.camera.camera import Camera  # Import the new Camera class
 
 # Import Fleet
 from src.fleet import Fleet
+
+# Import HUDManager
+from src.ui.hud_manager import HUDManager
 
 
 def main():
@@ -57,8 +59,8 @@ def main():
     # --- Create Camera Instance ---
     camera = Camera()
 
-    # --- Calculate UI element rects once (using the actual font) ---
-    scanner_button_rect, miner_button_rect = hud.get_construction_button_rects(ui_font)
+    # --- Create HUD Manager ---
+    hud_manager = HUDManager(ui_font)
 
     # --- Create Game World Objects ---
     central_planet = Planet(position=Vector2(0, 0))  # Uses constants internally
@@ -123,7 +125,6 @@ def main():
     running = True
     panning = False  # Initialize panning state
     pan_start_pos = None  # Also initialize pan_start_pos
-    # dragging_slider = None # Remove slider drag state
 
     # --- Main Game Loop ---
     while running:
@@ -131,11 +132,14 @@ def main():
         # Get current ships from fleet for rendering/global checks
         all_ships = fleet.get_all_ships()
 
-        # --- Get assignment button rects for interaction ---
-        current_assignment_buttons = hud.get_assignment_button_rects()
-
-        # --- Recalculate total miners each frame --- (Now done inside Admiral if needed)
-        # total_mining_ships = len(fleet.get_ships_by_type(MiningShip))
+        # --- Get UI element rects for interaction from HUDManager ---
+        current_assignment_buttons = hud_manager.get_assignment_button_rects()
+        current_bottom_tab_rects = hud_manager.get_bottom_tab_rects()
+        current_toggle_button_rect = hud_manager.get_panel_toggle_button_rect()
+        # Get construction rects if needed for clicks (assuming they are updated in draw)
+        current_construction_buttons = hud_manager.get_construction_button_rects()
+        scanner_button_rect = current_construction_buttons["scanner"]
+        miner_button_rect = current_construction_buttons["miner"]
 
         # --- Event Handling ---
         mouse_pos_vec = Vector2(pygame.mouse.get_pos())  # Get mouse pos as Vector2
@@ -153,9 +157,25 @@ def main():
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left click
+                    clicked_on_ui = False
+
+                    # --- Check for Panel Toggle Button Click ---
+                    if current_toggle_button_rect and current_toggle_button_rect.collidepoint(
+                        event.pos
+                    ):
+                        hud_manager.toggle_panel_collapsed()  # Call manager method
+                        clicked_on_ui = True
+
+                    # --- Check for Bottom Tab Clicks --- (Always check)
+                    if not clicked_on_ui and current_bottom_tab_rects:
+                        for i, rect in current_bottom_tab_rects.items():
+                            if rect.collidepoint(event.pos):
+                                hud_manager.select_bottom_tab(i)  # Call manager method
+                                clicked_on_ui = True
+                                break
+
                     # --- Check for Assignment Button Clicks ---
-                    clicked_on_assignment_button = False
-                    if current_assignment_buttons:
+                    if not clicked_on_ui and current_assignment_buttons:
                         for category, buttons in current_assignment_buttons.items():
                             delta = 0
                             if buttons["+"] and buttons["+"].collidepoint(event.pos):
@@ -166,24 +186,33 @@ def main():
                             if delta != 0:
                                 # Call admiral to update targets
                                 fleet.miner_admiral.adjust_ship_count_for_category(category, delta)
-                                clicked_on_assignment_button = True
+                                clicked_on_ui = True  # Set flag
                                 break  # Process only one button click per event
-                        # REMOVED manual adjustment logic
 
-                    if not clicked_on_assignment_button:
-                        # --- Check for Build Button Clicks ---
-                        if scanner_button_rect.collidepoint(event.pos):
+                    # --- Check for Build Button Clicks ---
+                    # Only check if panel is expanded and Construction tab (index 0) is selected
+                    if (
+                        not clicked_on_ui
+                        and not hud_manager.is_panel_collapsed
+                        and hud_manager.selected_bottom_tab_index == 0
+                    ):
+                        # Ensure rects are valid before checking collision
+                        scanner_button_rect = current_construction_buttons["scanner"]
+                        miner_button_rect = current_construction_buttons["miner"]
+                        if scanner_button_rect and scanner_button_rect.collidepoint(event.pos):
                             new_ship = construction_system.attempt_construction(
                                 central_planet, "scanner"
                             )
                             if new_ship:
-                                fleet.add_ship(new_ship)  # Add to fleet
-                        elif miner_button_rect.collidepoint(event.pos):
+                                fleet.add_ship(new_ship)
+                                clicked_on_ui = True  # Register click
+                        elif miner_button_rect and miner_button_rect.collidepoint(event.pos):
                             new_ship = construction_system.attempt_construction(
                                 central_planet, "miner"
                             )
                             if new_ship:
-                                fleet.add_ship(new_ship)  # Add to fleet
+                                fleet.add_ship(new_ship)
+                                clicked_on_ui = True  # Register click
 
                 elif event.button == 2:  # Panning
                     panning = True
@@ -220,8 +249,9 @@ def main():
             stars,
         )
 
-        # --- Draw HUD ---
-        hud.draw_hud(screen, ui_font, fleet, central_planet, camera, all_ships)
+        # --- Draw HUD (using HUDManager instance) ---
+        # Pass only necessary arguments, state is internal to hud_manager
+        hud_manager.draw(screen, fleet, central_planet, camera)
 
         # Update Display
         pygame.display.flip()

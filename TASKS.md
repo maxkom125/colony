@@ -67,15 +67,15 @@
 - Dependencies: 10 # Depends on resources being delivered to planet storage
 
 ## Task ID: 12
-- Status: TODO
-- Description: Define resource conversion rates (Tritanium <-> Credits, Plasma <-> Credits) including fees.
+- Status: DONE
+- Description: Create a `SpaceMarket` class to handle dynamic resource conversion. Implement logic for storing current/base rates, calculating transactions with fees, adjusting rates based on trades, and decaying rates towards base values over time. Define initial base rates and fee.
 - Priority: Low
 - Dependencies: 5
 
 ## Task ID: 13
 - Status: TODO
 - Description: Implement UI/mechanism for resource conversion.
-- Priority: Low
+- Priority: High
 - Dependencies: 11, 12
 
 ## Task ID: 14

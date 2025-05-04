@@ -95,7 +95,7 @@ SLIDER_BG_COLOR = (50, 50, 50)
 SLIDER_KNOB_COLOR = (180, 180, 180)
 
 # --- HUD Assignment UI Constants ---
-ASSIGNMENT_AREA_X = SCREEN_WIDTH - 200 # Position relative to screen width
+ASSIGNMENT_AREA_X = SCREEN_WIDTH - 100 # Position relative to screen width
 ASSIGNMENT_AREA_Y = 40
 ASSIGNMENT_LINE_HEIGHT = 25
 ASSIGNMENT_BUTTON_WIDTH = 20
@@ -107,6 +107,24 @@ ARRIVAL_DISTANCE_BUFFER = 5  # World units buffer for arrival checks
 EPSILON = 1e-6  # Small value for float comparisons
 EPSILON_SQ = EPSILON * EPSILON  # Epsilon squared for distance comparisons
 TARGET_LINE_COLOR = (255, 255, 0)  # Yellow for target lines
+
+# --- Bottom Panel UI ---
+BOTTOM_PANEL_WIDTH = int(SCREEN_WIDTH * 0.7)
+BOTTOM_PANEL_HEIGHT = int(SCREEN_WIDTH * 0.06)
+BOTTOM_PANEL_COLOR = (30, 30, 30) # Dark gray
+BOTTOM_PANEL_TAB_WIDTH = 150
+BOTTOM_PANEL_TAB_HEIGHT = 25
+BOTTOM_PANEL_TAB_COLOR = (50, 50, 50) # Slightly lighter gray
+BOTTOM_PANEL_TAB_SELECTED_COLOR = (70, 70, 70) # Even lighter gray
+BOTTOM_PANEL_BORDER_COLOR = (90, 90, 90) # Border color
+BOTTOM_PANEL_BORDER_WIDTH = 2
+
+# --- Panel Toggle Button ---
+PANEL_TOGGLE_BUTTON_WIDTH = 40
+PANEL_TOGGLE_BUTTON_HEIGHT = 15
+PANEL_TOGGLE_BUTTON_COLOR = (80, 80, 80) # Similar to selected tab
+PANEL_TOGGLE_SYMBOL_COLLAPSE = "^" # Symbol for collapse
+PANEL_TOGGLE_SYMBOL_EXPAND = "v" # Symbol for expand
 
 # --- Construction Costs ---
 SCANNER_COST_TRITANIUM = 50
