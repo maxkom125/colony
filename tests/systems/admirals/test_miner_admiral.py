@@ -51,6 +51,7 @@ class MockMiningShip(MagicMock):
         self.set_state = MagicMock()
         self.set_resource_to_mine = MagicMock()
         self.name = f"MockMiner_{self.id}"  # Add a name for potential debugging
+        self.target = None
 
 
 class MockAsteroid(MagicMock):
@@ -641,8 +642,10 @@ def test_assign_idle_miners_no_idle_miners(miner_admiral):
     """Test assign_idle_miners does nothing if no miners are IDLE."""
     miner = MockMiningShip(ship_id=1, state=ShipState.MINING)  # Not IDLE
     miner_admiral.add_ship(miner)
+    miner.set_target.reset_mock()
     miner.set_state.reset_mock()
     miner.set_resource_to_mine.reset_mock()
+    miner.state = ShipState.MINING
     asteroids = [MockAsteroid()]
 
     miner_admiral.assign_idle_miners(asteroids)
