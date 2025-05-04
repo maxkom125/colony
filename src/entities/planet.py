@@ -65,17 +65,5 @@ class Planet(Entity):
         screen_radius = max(1, int(self.radius * zoom_level))
         pygame.draw.circle(surface, self.color, screen_pos, screen_radius)
 
-        # Optionally draw stored resources if needed
-        if zoom_level > 0.4: # Only draw text if zoomed in enough
-            font = pygame.font.SysFont(None, max(10, int(14 * zoom_level)))
-            y_offset = screen_radius + 5
-            for res_type, amount in self.storage.items():
-                if amount > 0:
-                    res_color = (220, 220, 220) # Default white/gray
-                    text = font.render(f"{res_type}: {amount}", True, res_color)
-                    text_rect = text.get_rect(center=(screen_pos.x, screen_pos.y + y_offset))
-                    surface.blit(text, text_rect)
-                    y_offset += text.get_height()
-    
     # update() method is inherited from Entity (currently does nothing)
  

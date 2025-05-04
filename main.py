@@ -3,6 +3,7 @@ import sys
 
 # Adjust imports for new structure
 from src import constants
+from src.enums import ResourceType
 import random  # Import random module
 import math  # Import math for trigonometric functions
 from pygame.math import Vector2  # Import Vector2
@@ -22,6 +23,9 @@ from src.fleet import Fleet
 
 # Import HUDManager
 from src.ui.hud_manager import HUDManager
+
+# Import SpaceMarket
+from src.systems.space_market import SpaceMarket
 
 
 def main():
@@ -53,13 +57,11 @@ def main():
     # Clock for controlling frame rate
     clock = pygame.time.Clock()
 
-    # --- Create Fleet ---
-    fleet = Fleet()  # Central registry
-
-    # --- Create Camera Instance ---
+    # --- Create Systems & Managers ---
+    fleet = Fleet()
     camera = Camera()
-
-    # --- Create HUD Manager ---
+    space_market = SpaceMarket() # Instantiate SpaceMarket
+    # Pass space_market to HUDManager if needed later (or interact directly)
     hud_manager = HUDManager(ui_font)
 
     # --- Create Game World Objects ---
@@ -136,8 +138,12 @@ def main():
         current_assignment_buttons = hud_manager.get_assignment_button_rects()
         current_bottom_tab_rects = hud_manager.get_bottom_tab_rects()
         current_toggle_button_rect = hud_manager.get_panel_toggle_button_rect()
-        # Get construction rects if needed for clicks (assuming they are updated in draw)
         current_construction_buttons = hud_manager.get_construction_button_rects()
+        # Get NEW market UI rects
+        current_market_slider_handles = hud_manager.get_market_slider_handle_rects()
+        current_market_minus_buttons = hud_manager.get_market_slider_minus_buttons()
+        current_market_plus_buttons = hud_manager.get_market_slider_plus_buttons()
+        current_market_confirm_buttons = hud_manager.get_market_confirm_button_rects()
         scanner_button_rect = current_construction_buttons["scanner"]
         miner_button_rect = current_construction_buttons["miner"]
 
@@ -163,18 +169,89 @@ def main():
                     if current_toggle_button_rect and current_toggle_button_rect.collidepoint(
                         event.pos
                     ):
-                        hud_manager.toggle_panel_collapsed()  # Call manager method
+                        hud_manager.toggle_panel_collapsed()
                         clicked_on_ui = True
 
                     # --- Check for Bottom Tab Clicks --- (Always check)
                     if not clicked_on_ui and current_bottom_tab_rects:
                         for i, rect in current_bottom_tab_rects.items():
                             if rect.collidepoint(event.pos):
-                                hud_manager.select_bottom_tab(i)  # Call manager method
+                                hud_manager.select_bottom_tab(i)
+                                # Reset sliders when switching to market tab
+                                if i == 1: # Index of Market Tab
+                                    hud_manager.reset_market_sliders()
                                 clicked_on_ui = True
                                 break
 
-                    # --- Check for Assignment Button Clicks ---
+                    # --- Check UI Buttons based on current tab and panel state ---
+                    if not clicked_on_ui and not hud_manager.is_panel_collapsed:
+                        if hud_manager.selected_bottom_tab_index == 0: # Construction Tab
+                            # Check Construction Buttons
+                            if scanner_button_rect and scanner_button_rect.collidepoint(event.pos):
+                                new_ship = construction_system.attempt_construction(
+                                    central_planet, "scanner"
+                                )
+                                if new_ship:
+                                    fleet.add_ship(new_ship)
+                                    clicked_on_ui = True
+                            elif miner_button_rect and miner_button_rect.collidepoint(event.pos):
+                                new_ship = construction_system.attempt_construction(
+                                    central_planet, "miner"
+                                )
+                                if new_ship:
+                                    fleet.add_ship(new_ship)
+                                    clicked_on_ui = True
+                        elif hud_manager.selected_bottom_tab_index == 1: # Space Market Tab
+                            # --- NEW: Handle Market Slider Interaction ---
+                            # Check slider handles first (start drag)
+                            for resource_type, handle_rect in current_market_slider_handles.items():
+                                if handle_rect and handle_rect.collidepoint(event.pos):
+                                    if hud_manager.start_slider_drag(resource_type, event.pos):
+                                        clicked_on_ui = True
+                                        break
+                            # Check +/- buttons if not dragging
+                            if not clicked_on_ui and not hud_manager.dragging_slider:
+                                delta = 0.1 # Amount to adjust slider by per click
+                                for resource_type, minus_rect in current_market_minus_buttons.items():
+                                    if minus_rect and minus_rect.collidepoint(event.pos):
+                                        hud_manager.adjust_slider(resource_type, -delta, central_planet, space_market)
+                                        clicked_on_ui = True
+                                        break
+                                if not clicked_on_ui:
+                                    for resource_type, plus_rect in current_market_plus_buttons.items():
+                                        if plus_rect and plus_rect.collidepoint(event.pos):
+                                            hud_manager.adjust_slider(resource_type, delta, central_planet, space_market)
+                                            clicked_on_ui = True
+                                            break
+                            # Check Confirm buttons if not dragging
+                            if not clicked_on_ui and not hud_manager.dragging_slider:
+                                for resource_type, confirm_rect in current_market_confirm_buttons.items():
+                                    if confirm_rect and confirm_rect.collidepoint(event.pos):
+                                        action, amount, cost_gain = hud_manager.get_current_trade_details(resource_type)
+                                        if amount > 0: # Only process if there's an amount
+                                            if action == "Buy":
+                                                success = space_market.buy_resource(central_planet.storage, resource_type, amount)
+                                            elif action == "Sell":
+                                                success = space_market.sell_resource(central_planet.storage, resource_type, amount)
+                                            else: # Should not happen
+                                                success = False
+
+                                            if success:
+                                                print(f"Market: {action} {amount} {resource_type.value} successful.")
+                                                # Optionally reset slider after confirm?
+                                                # hud_manager.market_slider_values[resource_type] = 0.0
+                                                # hud_manager._update_trade_details(resource_type, central_planet, space_market)
+                                            else:
+                                                 print(f"Market: {action} {amount} {resource_type.value} FAILED.")
+
+                                            clicked_on_ui = True # Mark UI clicked even if transaction failed
+                                            break
+
+                        # elif hud_manager.selected_bottom_tab_index == 2: # Research Tab
+                            # TODO: Handle research button clicks
+                            # pass
+
+                    # --- Check for Assignment Button Clicks --- (Can happen regardless of panel)
                     if not clicked_on_ui and current_assignment_buttons:
                         for category, buttons in current_assignment_buttons.items():
                             delta = 0
@@ -189,42 +266,20 @@ def main():
                                 clicked_on_ui = True  # Set flag
                                 break  # Process only one button click per event
 
-                    # --- Check for Build Button Clicks ---
-                    # Only check if panel is expanded and Construction tab (index 0) is selected
-                    if (
-                        not clicked_on_ui
-                        and not hud_manager.is_panel_collapsed
-                        and hud_manager.selected_bottom_tab_index == 0
-                    ):
-                        # Ensure rects are valid before checking collision
-                        scanner_button_rect = current_construction_buttons["scanner"]
-                        miner_button_rect = current_construction_buttons["miner"]
-                        if scanner_button_rect and scanner_button_rect.collidepoint(event.pos):
-                            new_ship = construction_system.attempt_construction(
-                                central_planet, "scanner"
-                            )
-                            if new_ship:
-                                fleet.add_ship(new_ship)
-                                clicked_on_ui = True  # Register click
-                        elif miner_button_rect and miner_button_rect.collidepoint(event.pos):
-                            new_ship = construction_system.attempt_construction(
-                                central_planet, "miner"
-                            )
-                            if new_ship:
-                                fleet.add_ship(new_ship)
-                                clicked_on_ui = True  # Register click
-
                 elif event.button == 2:  # Panning
                     panning = True
                     pan_start_pos = mouse_pos_vec
             elif event.type == pygame.MOUSEBUTTONUP:
-                # if event.button == 1: dragging_slider = None # Removed
-                if event.button == 2:
+                if event.button == 1: # Left mouse button up
+                    if hud_manager.dragging_slider: # Stop dragging slider
+                        hud_manager.stop_slider_drag()
+                elif event.button == 2:
                     panning = False
                     pan_start_pos = None
             elif event.type == pygame.MOUSEMOTION:
-                # if dragging_slider: ... # Removed
-                if panning and pan_start_pos:
+                if hud_manager.dragging_slider:
+                    hud_manager.update_slider_drag(event.pos, central_planet, space_market)
+                elif panning and pan_start_pos:
                     pan_delta_screen = mouse_pos_vec - pan_start_pos
                     camera.handle_pan(pan_delta_screen)
                     pan_start_pos = mouse_pos_vec
@@ -250,8 +305,7 @@ def main():
         )
 
         # --- Draw HUD (using HUDManager instance) ---
-        # Pass only necessary arguments, state is internal to hud_manager
-        hud_manager.draw(screen, fleet, central_planet, camera)
+        hud_manager.draw(screen, fleet, central_planet, camera, space_market)
 
         # Update Display
         pygame.display.flip()

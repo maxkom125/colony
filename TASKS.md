@@ -73,7 +73,7 @@
 - Dependencies: 5
 
 ## Task ID: 13
-- Status: TODO
+- Status: DONE
 - Description: Implement UI/mechanism for resource conversion.
 - Priority: High
 - Dependencies: 11, 12

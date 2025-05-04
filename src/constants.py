@@ -145,6 +145,13 @@ from .enums import ShipState
 # --- Behavioral Constants ---
 ARRIVAL_DISTANCE_BUFFER = 5 # How close ships need to be to radius sum to trigger arrival
 
+# --- Game Speed Control ---
+GAME_SPEED_MULTIPLIERS = [0.0, 1.0, 2.0, 4.0] # 0=Pause, 1=Normal, 2=Fast, 4=SuperFast
+GAME_SPEED_ICONS = ["||", ">", ">>", ">>>"] # Text icons for buttons
+GAME_SPEED_BUTTON_SIZE = 30
+GAME_SPEED_BUTTON_PADDING = 5
+GAME_SPEED_AREA_TOP_RIGHT = (SCREEN_WIDTH - 10, 10) # Anchor point
+
 # Set of ship states considered "moving" states for update_movement logic
 MOVING_SHIP_STATES = {
     ShipState.MOVING_TO_ASTEROID,
@@ -152,3 +159,5 @@ MOVING_SHIP_STATES = {
     ShipState.MOVING_TO_POSITION,
     ShipState.RETURNING_TO_BASE
 }
+
+# --- Game Balance & Tuning ---

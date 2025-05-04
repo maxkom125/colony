@@ -1,7 +1,7 @@
 # src/ui/hud_manager.py
 import pygame
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 # Need imports for type hinting (will be adjusted as methods are moved)
 from .. import constants
@@ -14,6 +14,7 @@ from ..enums import ShipState, ResourceType
 from ..camera.camera import Camera
 from ..systems.admirals.miner_admiral import MinerAdmiral
 from ..fleet import Fleet
+from ..systems.space_market import SpaceMarket
 
 
 class HUDManager:
@@ -31,7 +32,25 @@ class HUDManager:
         self.construction_button_rects: Dict[str, pygame.Rect | None] = {
             "scanner": None,
             "miner": None,
-        }  # Keys for scanner/miner
+        }
+        # --- NEW: Market Slider State ---
+        self.market_slider_rects: Dict[ResourceType, pygame.Rect] = {}
+        self.market_slider_handle_rects: Dict[ResourceType, pygame.Rect] = {}
+        self.market_slider_values: Dict[ResourceType, float] = {  # -1.0 (sell max) to 1.0 (buy max)
+            res: 0.0 for res in [ResourceType.TRITANIUM, ResourceType.PLASMA]
+        }
+        self.market_slider_plus_buttons: Dict[ResourceType, pygame.Rect] = {}
+        self.market_slider_minus_buttons: Dict[ResourceType, pygame.Rect] = {}
+        self.market_confirm_button_rects: Dict[ResourceType, pygame.Rect] = {}
+        self.dragging_slider: Optional[ResourceType] = None
+        self.current_trade_details: Dict[ResourceType, Tuple[str, int, float]] = (
+            {  # Action ("Buy"/"Sell"), Amount, Cost/Gain
+                res: ("Sell", 0, 0.0) for res in [ResourceType.TRITANIUM, ResourceType.PLASMA]
+            }
+        )
+        # --- REMOVED: Old market UI state ---
+        # self.market_ui_elements: ...
+        # self.market_trade_amounts: ...
 
         # --- Internal UI State ---
         self.selected_bottom_tab_index: int = 0  # Default to first tab
@@ -44,6 +63,7 @@ class HUDManager:
         fleet: Fleet,
         planet: Planet,
         camera: Camera,
+        space_market: SpaceMarket,  # Add space_market instance
     ):
         """Draws all HUD elements using internal state."""
         all_ships = fleet.get_all_ships()
@@ -74,15 +94,14 @@ class HUDManager:
             positions["button_y_collapsed"],
         )
 
-        # Only draw the main panel background if not collapsed
+        # Only draw the main panel background and content if not collapsed
         if not self.is_panel_collapsed:
             self._draw_panel_background(screen)
             # --- Draw content specific to the selected tab ---
             if self.selected_bottom_tab_index == 0:  # Construction Tab
                 self._draw_construction_buttons(screen)
             elif self.selected_bottom_tab_index == 1:  # Space Market Tab
-                # TODO: Draw market UI
-                pass
+                self._draw_space_market_ui(screen, space_market, planet)  # Pass market and planet
             elif self.selected_bottom_tab_index == 2:  # Research Tab
                 # TODO: Draw research UI
                 pass
@@ -99,7 +118,107 @@ class HUDManager:
         # Selecting a tab automatically expands the panel
         self.is_panel_collapsed = False
 
-    # --- Placeholder for Getter Methods ---
+    # --- REMOVED: Old market amount methods ---
+    # def increase_trade_amount(...)
+    # def decrease_trade_amount(...)
+    # def get_trade_amount(...)
+
+    # --- NEW: Slider Interaction Methods ---
+    def start_slider_drag(self, resource: ResourceType, mouse_pos: Tuple[int, int]) -> bool:
+        """Checks if the mouse click is on a slider handle and starts dragging."""
+        if resource in self.market_slider_handle_rects:
+            handle_rect = self.market_slider_handle_rects[resource]
+            if handle_rect and handle_rect.collidepoint(mouse_pos):
+                self.dragging_slider = resource
+                return True
+        return False
+
+    def stop_slider_drag(self):
+        """Stops dragging any slider."""
+        self.dragging_slider = None
+
+    def update_slider_drag(
+        self, mouse_pos: Tuple[int, int], planet: Planet, space_market: SpaceMarket
+    ):
+        """Updates the value of the slider being dragged based on mouse position."""
+        if self.dragging_slider and self.dragging_slider in self.market_slider_rects:
+            slider_rect = self.market_slider_rects[self.dragging_slider]
+            if not slider_rect:
+                return  # Should not happen if dragging
+
+            # Calculate value based on horizontal position relative to slider rect
+            relative_x = mouse_pos[0] - slider_rect.left
+            slider_width = slider_rect.width
+            # Clamp value between 0 and slider_width
+            relative_x = max(0, min(relative_x, slider_width))
+            # Normalize to -1.0 to 1.0 (0 = center)
+            value = (relative_x / slider_width) * 2.0 - 1.0
+            # Small deadzone near center? Optional, for now snap to 0 if very close
+            if abs(value) < 0.05:
+                value = 0.0
+
+            self.market_slider_values[self.dragging_slider] = value
+            # Update the trade details based on the new slider value
+            self._update_trade_details(self.dragging_slider, planet, space_market)
+
+    def adjust_slider(
+        self, resource: ResourceType, delta: float, planet: Planet, space_market: SpaceMarket
+    ):
+        """Adjusts the slider value by a small delta (e.g., from +/- buttons)."""
+        if resource in self.market_slider_values:
+            current_value = self.market_slider_values[resource]
+            new_value = max(-1.0, min(1.0, current_value + delta))
+            # Small deadzone near center? Optional, for now snap to 0 if very close
+            if (
+                abs(new_value) < 0.05 and delta != 0
+            ):  # Only snap if moving *through* zero via button
+                new_value = 0.0
+            self.market_slider_values[resource] = new_value
+            # Update the trade details based on the new slider value
+            self._update_trade_details(resource, planet, space_market)
+
+    def _update_trade_details(
+        self, resource: ResourceType, planet: Planet, space_market: SpaceMarket
+    ):
+        """Calculates the trade action, amount, and cost/gain based on the slider value."""
+        value = self.market_slider_values[resource]
+        resource_str = resource.value
+        available_amount = planet.storage.get(resource_str, 0)
+        available_credits = planet.storage.get(ResourceType.CREDITS.value, 0)
+
+        if value < 0:  # Selling
+            action = "Sell"
+            # Scale amount from 0 (at center) to available_amount (at -1.0)
+            amount = int(abs(value) * available_amount)
+            cost_gain = space_market.get_sell_gain(resource, amount)
+        elif value > 0:  # Buying
+            action = "Buy"
+            # Calculate cost of buying 1 unit
+            cost_per_unit = space_market.get_buy_cost(resource, 1)
+            # Calculate max buyable amount based on credits
+            max_buyable_amount = 0
+            if cost_per_unit > constants.EPSILON:  # Avoid division by zero/tiny numbers
+                max_buyable_amount = int(available_credits // cost_per_unit)
+
+            # Scale amount from 0 (at center) to MAX_BUY (at 1.0)
+            amount = int(value * max_buyable_amount)
+            cost_gain = -space_market.get_buy_cost(resource, amount)  # Cost is negative gain
+        else:  # value == 0
+            action = "Sell"  # Default action text when at 0
+            amount = 0
+            cost_gain = 0.0
+
+        self.current_trade_details[resource] = (action, amount, cost_gain)
+
+    def reset_market_sliders(self):
+        """Resets all sliders to 0 and clears dragging state."""
+        self.dragging_slider = None
+        for resource in self.market_slider_values:
+            self.market_slider_values[resource] = 0.0
+            # Optionally re-update trade details if needed, but draw call will do it
+            # self._update_trade_details(resource, planet, space_market) # Need planet/market refs here
+
+    # --- Getter Methods ---
     def get_bottom_tab_rects(self) -> Dict[int, pygame.Rect]:
         return self.bottom_tab_rects
 
@@ -112,10 +231,25 @@ class HUDManager:
     def get_construction_button_rects(self) -> Dict[str, pygame.Rect | None]:
         return self.construction_button_rects
 
-    # --- Placeholder for internal drawing methods ---
-    # TODO: Move functions from hud.py here as private methods (_draw_...)
-    # e.g., def _draw_bottom_tabs(self, screen, selected_index, tab_start_x, tab_y): ...
-    # These methods will update the self.*_rects attributes.
+    # --- NEW: Slider/Market Getter Methods ---
+    def get_market_slider_rects(self) -> Dict[ResourceType, pygame.Rect]:
+        return self.market_slider_rects
+
+    def get_market_slider_handle_rects(self) -> Dict[ResourceType, pygame.Rect]:
+        return self.market_slider_handle_rects
+
+    def get_market_slider_plus_buttons(self) -> Dict[ResourceType, pygame.Rect]:
+        return self.market_slider_plus_buttons
+
+    def get_market_slider_minus_buttons(self) -> Dict[ResourceType, pygame.Rect]:
+        return self.market_slider_minus_buttons
+
+    def get_market_confirm_button_rects(self) -> Dict[ResourceType, pygame.Rect]:
+        return self.market_confirm_button_rects
+
+    def get_current_trade_details(self, resource: ResourceType) -> Tuple[str, int, float]:
+        """Returns the calculated (Action, Amount, Cost/Gain) for a resource."""
+        return self.current_trade_details.get(resource, ("Sell", 0, 0.0))
 
     # --- Internal Helper & Drawing Methods ---
 
@@ -403,3 +537,157 @@ class HUDManager:
 
         screen.blit(scanner_surf, scanner_rect)
         screen.blit(miner_surf, miner_rect)
+
+    def _draw_space_market_ui(
+        self, screen: pygame.Surface, space_market: SpaceMarket, planet: Planet
+    ):
+        """Draws the interactive UI for the Space Market tab using a slider."""
+        # Clear old rects - important!
+        self.market_slider_rects.clear()
+        self.market_slider_handle_rects.clear()
+        self.market_slider_plus_buttons.clear()
+        self.market_slider_minus_buttons.clear()
+        self.market_confirm_button_rects.clear()
+
+        panel_start_x = (constants.SCREEN_WIDTH - constants.BOTTOM_PANEL_WIDTH) / 2
+        panel_top_y = constants.SCREEN_HEIGHT - constants.BOTTOM_PANEL_HEIGHT
+        content_start_x = panel_start_x + 20
+        content_start_y = panel_top_y + 10  # Start slightly lower
+        line_height = 35  # Increased line height for slider + text
+        button_size = 20
+        slider_width = 200
+        slider_height = 10
+        handle_width = 8
+        handle_height = 15
+        button_padding = 10
+        confirm_button_width = 80
+        confirm_button_height = 25
+
+        y_offset = content_start_y
+
+        resources_to_trade = [ResourceType.TRITANIUM, ResourceType.PLASMA]
+
+        for resource in resources_to_trade:
+            # Update trade details for this resource based on current slider value
+            self._update_trade_details(resource, planet, space_market)
+            action, amount, cost_gain = self.current_trade_details[resource]
+
+            resource_str = resource.value
+            slider_value = self.market_slider_values[resource]
+
+            # Resource Info (Name, Have)
+            have_amount = int(planet.storage.get(resource_str, 0))
+            info_text = f"{resource_str} (Have: {have_amount})"
+            color = (
+                constants.TRITANIUM_COLOR
+                if resource == ResourceType.TRITANIUM
+                else constants.PLASMA_COLOR
+            )
+            info_surf = self.font.render(info_text, True, color)
+            info_rect = info_surf.get_rect(topleft=(content_start_x, y_offset))
+            screen.blit(info_surf, info_rect)
+            current_x = info_rect.right + 20  # Space after resource name
+
+            # --- Slider ---
+            # Minus Button
+            minus_rect = pygame.Rect(
+                current_x,
+                y_offset + (info_surf.get_height() - button_size) // 2,
+                button_size,
+                button_size,
+            )
+            pygame.draw.rect(screen, constants.BOTTOM_PANEL_TAB_COLOR, minus_rect, border_radius=3)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, minus_rect, 1, border_radius=3
+            )
+            minus_surf = self.font.render("-", True, constants.UI_TEXT_COLOR)
+            minus_text_rect = minus_surf.get_rect(center=minus_rect.center)
+            screen.blit(minus_surf, minus_text_rect)
+            self.market_slider_minus_buttons[resource] = minus_rect
+            current_x += button_size + button_padding
+
+            # Slider Track
+            slider_track_rect = pygame.Rect(
+                current_x,
+                y_offset + (info_surf.get_height() - slider_height) // 2,
+                slider_width,
+                slider_height,
+            )
+            pygame.draw.rect(screen, constants.SLIDER_BG_COLOR, slider_track_rect, border_radius=5)
+            self.market_slider_rects[resource] = slider_track_rect  # Store track rect
+            # Draw center line
+            center_x = slider_track_rect.centerx
+            pygame.draw.line(
+                screen,
+                constants.GRAY,
+                (center_x, slider_track_rect.top),
+                (center_x, slider_track_rect.bottom),
+                1,
+            )
+            current_x += slider_width + button_padding
+
+            # Slider Handle
+            handle_x_normalized = (slider_value + 1.0) / 2.0  # Convert -1..1 to 0..1
+            handle_center_x = slider_track_rect.left + handle_x_normalized * slider_track_rect.width
+            handle_rect = pygame.Rect(0, 0, handle_width, handle_height)
+            handle_rect.center = (handle_center_x, slider_track_rect.centery)
+            handle_color = constants.SLIDER_KNOB_COLOR
+            if self.dragging_slider == resource:
+                handle_color = constants.WHITE  # Highlight if dragging
+            pygame.draw.rect(screen, handle_color, handle_rect, border_radius=3)
+            self.market_slider_handle_rects[resource] = handle_rect  # Store handle rect
+
+            # Plus Button
+            plus_rect = pygame.Rect(
+                current_x,
+                y_offset + (info_surf.get_height() - button_size) // 2,
+                button_size,
+                button_size,
+            )
+            pygame.draw.rect(screen, constants.BOTTOM_PANEL_TAB_COLOR, plus_rect, border_radius=3)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, plus_rect, 1, border_radius=3
+            )
+            plus_surf = self.font.render("+", True, constants.UI_TEXT_COLOR)
+            plus_text_rect = plus_surf.get_rect(center=plus_rect.center)
+            screen.blit(plus_surf, plus_text_rect)
+            self.market_slider_plus_buttons[resource] = plus_rect
+            current_x += plus_rect.width + 20  # More space before trade details
+
+            # --- Trade Details and Confirm Button ---
+            # Trade Action Text (Buy/Sell Amount)
+            trade_text = f"{action} {amount}"
+            trade_surf = self.font.render(trade_text, True, constants.UI_TEXT_COLOR)
+            trade_rect = trade_surf.get_rect(midleft=(current_x, plus_rect.centery))
+            screen.blit(trade_surf, trade_rect)
+            current_x = trade_rect.right + 15
+
+            # Cost/Gain Text
+            cost_gain_str = f"({cost_gain:+.1f} Cr)"
+            cost_gain_surf = self.font.render(cost_gain_str, True, constants.CREDITS_COLOR)
+            cost_gain_rect = cost_gain_surf.get_rect(midleft=(current_x, plus_rect.centery))
+            screen.blit(cost_gain_surf, cost_gain_rect)
+            current_x = cost_gain_rect.right + 25
+
+            # Confirm Button
+            confirm_rect = pygame.Rect(
+                current_x,
+                y_offset + (info_surf.get_height() - confirm_button_height) // 2,
+                confirm_button_width,
+                confirm_button_height,
+            )
+            # Only enable confirm if amount > 0
+            button_color = (
+                constants.BOTTOM_PANEL_TAB_COLOR if amount > 0 else constants.SLIDER_BG_COLOR
+            )
+            text_color = constants.UI_TEXT_COLOR if amount > 0 else constants.GRAY
+            pygame.draw.rect(screen, button_color, confirm_rect, border_radius=5)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, confirm_rect, 1, border_radius=5
+            )
+            confirm_surf = self.font.render("Confirm", True, text_color)
+            confirm_text_rect = confirm_surf.get_rect(center=confirm_rect.center)
+            screen.blit(confirm_surf, confirm_text_rect)
+            self.market_confirm_button_rects[resource] = confirm_rect  # Store confirm button rect
+
+            y_offset += line_height
