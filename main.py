@@ -47,10 +47,14 @@ def main():
         # Update constants with actual screen size if fullscreen is used
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = screen.get_size()
         print(f"Screen size set to: {constants.SCREEN_WIDTH}x{constants.SCREEN_HEIGHT}")
+        # Recalculate constants dependent on the new screen size
+        constants.calculate_dependent_constants()
     except pygame.error as e:
         print(f"Error setting display mode: {e}. Falling back to windowed.")
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = 1280, 720  # Default fallback
         screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+        # Also recalculate if falling back to windowed mode
+        constants.calculate_dependent_constants()
 
     pygame.display.set_caption(constants.GAME_TITLE)
 
@@ -128,9 +132,16 @@ def main():
     panning = False  # Initialize panning state
     pan_start_pos = None  # Also initialize pan_start_pos
 
+    # --- Game Speed State ---
+    current_speed_index = 1 # Index into GAME_SPEED_MULTIPLIERS/ICONS (1 = 1.0x speed)
+
     # --- Main Game Loop ---
     while running:
-        dt = clock.tick(constants.FPS) / 1000.0
+        dt_raw = clock.tick(constants.FPS) / 1000.0
+        # Apply game speed multiplier
+        game_speed_multiplier = constants.GAME_SPEED_MULTIPLIERS[current_speed_index]
+        dt = dt_raw * game_speed_multiplier
+
         # Get current ships from fleet for rendering/global checks
         all_ships = fleet.get_all_ships()
 
@@ -144,6 +155,7 @@ def main():
         current_market_minus_buttons = hud_manager.get_market_slider_minus_buttons()
         current_market_plus_buttons = hud_manager.get_market_slider_plus_buttons()
         current_market_confirm_buttons = hud_manager.get_market_confirm_button_rects()
+        current_speed_buttons = hud_manager.get_speed_control_button_rects()
         scanner_button_rect = current_construction_buttons["scanner"]
         miner_button_rect = current_construction_buttons["miner"]
 
@@ -266,6 +278,15 @@ def main():
                                 clicked_on_ui = True  # Set flag
                                 break  # Process only one button click per event
 
+                    # --- Check Speed Control Buttons ---
+                    if not clicked_on_ui and current_speed_buttons:
+                        for i, rect in current_speed_buttons.items():
+                            if rect.collidepoint(event.pos):
+                                current_speed_index = i
+                                print(f"Game speed set to {constants.GAME_SPEED_MULTIPLIERS[current_speed_index]}x")
+                                clicked_on_ui = True
+                                break
+
                 elif event.button == 2:  # Panning
                     panning = True
                     pan_start_pos = mouse_pos_vec
@@ -284,12 +305,13 @@ def main():
                     camera.handle_pan(pan_delta_screen)
                     pan_start_pos = mouse_pos_vec
 
-        # --- Update Systems ---
-        # Call Miner Admiral update/assignment
-        fleet.give_orders(asteroids, central_planet)
+        # --- Update Systems --- (Skip if paused)
+        if game_speed_multiplier > 0.0:
+            # Call Miner Admiral update/assignment
+            fleet.give_orders(asteroids, central_planet)
 
-        # Update individual ship states (movement, mining, scanning timers)
-        fleet.update_ships(dt, [*asteroids, central_planet])
+            # Update individual ship states (movement, mining, scanning timers)
+            fleet.update_ships(dt, [*asteroids, central_planet])
 
         # --- Rendering ---
         screen.fill(constants.BACKGROUND_COLOR)  # Use constants

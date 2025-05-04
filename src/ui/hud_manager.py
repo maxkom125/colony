@@ -52,6 +52,9 @@ class HUDManager:
         # self.market_ui_elements: ...
         # self.market_trade_amounts: ...
 
+        # --- NEW: Speed Control State ---
+        self.speed_control_button_rects: Dict[int, pygame.Rect] = {}
+
         # --- Internal UI State ---
         self.selected_bottom_tab_index: int = 0  # Default to first tab
         self.is_panel_collapsed: bool = False  # Default to expanded
@@ -78,7 +81,7 @@ class HUDManager:
         self._draw_ship_statuses(screen, all_ships)
         self._draw_planet_storage(screen, planet)
         self._draw_miner_assignments(screen, miner_admiral)
-        self._draw_zoom_level(screen, camera)
+        self._draw_speed_controls(screen) # Draw speed controls
 
         # --- Draw Bottom Panel Elements ---
         self._draw_bottom_tabs(
@@ -250,6 +253,10 @@ class HUDManager:
     def get_current_trade_details(self, resource: ResourceType) -> Tuple[str, int, float]:
         """Returns the calculated (Action, Amount, Cost/Gain) for a resource."""
         return self.current_trade_details.get(resource, ("Sell", 0, 0.0))
+
+    def get_speed_control_button_rects(self) -> Dict[int, pygame.Rect]:
+        """Returns the calculated Rects for the speed control buttons."""
+        return self.speed_control_button_rects
 
     # --- Internal Helper & Drawing Methods ---
 
@@ -423,14 +430,6 @@ class HUDManager:
             screen.blit(text_surface, text_rect)
             storage_y_offset += 20
 
-    def _draw_zoom_level(self, screen: pygame.Surface, camera: Camera):
-        # (Copied from hud.py, uses self.font)
-        zoom_text = f"Zoom: {camera.zoom:.2f}x"
-        zoom_surface = self.font.render(zoom_text, True, constants.UI_TEXT_COLOR)  # Use self.font
-        text_rect = zoom_surface.get_rect(topright=(constants.SCREEN_WIDTH - 10, 10))
-        screen.blit(zoom_surface, text_rect)
-
-    # --- Placeholders for remaining methods ---
     def _draw_miner_assignments(self, screen: pygame.Surface, miner_admiral: MinerAdmiral):
         # (Copied from hud.py, uses self.font and self.assignment_button_rects)
         # Clear previous rects stored in the instance
@@ -691,3 +690,32 @@ class HUDManager:
             self.market_confirm_button_rects[resource] = confirm_rect  # Store confirm button rect
 
             y_offset += line_height
+
+    def _draw_speed_controls(self, screen: pygame.Surface):
+        """Draws the game speed control buttons (pause, play, ff) in the top-right corner."""
+        self.speed_control_button_rects.clear()
+
+        # Start drawing from the right edge of the screen, accounting for padding
+        right_margin = 10 # Define the margin from the edge
+        current_x = constants.SCREEN_WIDTH - right_margin
+        start_y = right_margin # Use the same margin for the top
+
+        # Iterate backwards through icons and indices
+        for i in range(len(constants.GAME_SPEED_ICONS) - 1, -1, -1):
+            icon = constants.GAME_SPEED_ICONS[i]
+            # Calculate the left edge of the button for this iteration
+            button_x = current_x - constants.GAME_SPEED_BUTTON_SIZE
+
+            # Determine color based on if this is the *active* speed? (Needs active speed index)
+            # TODO: Highlight the active button later if needed.
+            button_rect = pygame.Rect(button_x, start_y, constants.GAME_SPEED_BUTTON_SIZE, constants.GAME_SPEED_BUTTON_SIZE)
+            pygame.draw.rect(screen, constants.SLIDER_BG_COLOR, button_rect, border_radius=3)
+            pygame.draw.rect(screen, constants.BOTTOM_PANEL_BORDER_COLOR, button_rect, 1, border_radius=3)
+
+            icon_surf = self.font.render(icon, True, constants.UI_TEXT_COLOR)
+            icon_rect = icon_surf.get_rect(center=button_rect.center)
+            screen.blit(icon_surf, icon_rect)
+
+            self.speed_control_button_rects[i] = button_rect
+            # Move current_x to the left for the next button, including padding
+            current_x = button_x - constants.GAME_SPEED_BUTTON_PADDING
