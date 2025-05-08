@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class MiningShip(Ship):
     """Represents a ship specialized in mining asteroids."""
 
-    def __init__(self, position: Vector2, home_planet: Planet, ship_id: int | None = None):
+    def __init__(self, position: Vector2, home_planet: Planet, ship_id: int | None = None, *args, **kwargs):
         # Use constants for mining ship specific values
         super().__init__(
             position,
@@ -26,6 +26,7 @@ class MiningShip(Ship):
             constants.MINER_SPEED,
             home_planet,
             ship_id,
+            *args, **kwargs
         )
         self.type = ShipType.MINER
         self.cargo_capacity = constants.MINING_SHIP_CARGO_CAPACITY

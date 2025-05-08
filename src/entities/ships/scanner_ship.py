@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class ScannerShip(Ship):
     """A ship designed for scanning celestial objects."""
 
-    def __init__(self, position: Vector2, home_planet: Planet, ship_id: int | None = None):
+    def __init__(self, position: Vector2, home_planet: Planet, ship_id: int | None = None, *args, **kwargs):
         # Use constants for scanner ship specific values
         super().__init__(
             position,
@@ -26,6 +26,7 @@ class ScannerShip(Ship):
             constants.SCANNER_SPEED,
             home_planet,  # Pass home_planet
             ship_id,
+            *args, **kwargs
         )
         self.type = ShipType.SCANNER
         self.scan_range = constants.SCANNER_SCAN_RANGE

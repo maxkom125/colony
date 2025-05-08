@@ -10,11 +10,12 @@ from ..entities.asteroid import Asteroid
 from ..entities.ships.base_ship import Ship
 from ..entities.ships.scanner_ship import ScannerShip
 from ..entities.ships.mining_ship import MiningShip
-from ..enums import ShipState, ResourceType
+from ..enums import ShipState, ResourceType, ShipType
 from ..camera.camera import Camera
 from ..systems.admirals.miner_admiral import MinerAdmiral
 from ..fleet import Fleet
 from ..systems.space_market import SpaceMarket
+from ..systems.research_system import ResearchSystem
 
 
 class HUDManager:
@@ -58,6 +59,10 @@ class HUDManager:
         # --- Internal UI State ---
         self.selected_bottom_tab_index: int = 0  # Default to first tab
         self.is_panel_collapsed: bool = False  # Default to expanded
+        # --- NEW: Research Ship Type Selector State ---
+        self.research_selected_ship_type = ShipType.MINER  # Default to MINER
+        self.research_ship_type_tab_rects = {}
+        self.research_modal_ship_type = None  # None, 'MINER', or 'SCANNER'
 
     # --- Main Draw Method ---
     def draw(
@@ -67,6 +72,7 @@ class HUDManager:
         planet: Planet,
         camera: Camera,
         space_market: SpaceMarket,  # Add space_market instance
+        research_system: ResearchSystem,  # Add research_system instance
     ):
         """Draws all HUD elements using internal state."""
         all_ships = fleet.get_all_ships()
@@ -81,7 +87,7 @@ class HUDManager:
         self._draw_ship_statuses(screen, all_ships)
         self._draw_planet_storage(screen, planet)
         self._draw_miner_assignments(screen, miner_admiral)
-        self._draw_speed_controls(screen) # Draw speed controls
+        self._draw_speed_controls(screen)  # Draw speed controls
 
         # --- Draw Bottom Panel Elements ---
         self._draw_bottom_tabs(
@@ -106,8 +112,10 @@ class HUDManager:
             elif self.selected_bottom_tab_index == 1:  # Space Market Tab
                 self._draw_space_market_ui(screen, space_market, planet)  # Pass market and planet
             elif self.selected_bottom_tab_index == 2:  # Research Tab
-                # TODO: Draw research UI
-                pass
+                self._draw_research_ui(screen, planet, research_system)
+            # --- Draw research modal if open ---
+            if self.research_modal_ship_type:
+                self._draw_research_modal(screen, planet, research_system)
 
     # --- State Modification Methods ---
     def toggle_panel_collapsed(self):
@@ -257,6 +265,15 @@ class HUDManager:
     def get_speed_control_button_rects(self) -> Dict[int, pygame.Rect]:
         """Returns the calculated Rects for the speed control buttons."""
         return self.speed_control_button_rects
+
+    def get_research_button_rects(self):
+        return getattr(self, "research_button_rects", {})
+
+    def get_research_scroll_up_rect(self):
+        return getattr(self, "research_scroll_up_rect", None)
+
+    def get_research_scroll_down_rect(self):
+        return getattr(self, "research_scroll_down_rect", None)
 
     # --- Internal Helper & Drawing Methods ---
 
@@ -696,9 +713,9 @@ class HUDManager:
         self.speed_control_button_rects.clear()
 
         # Start drawing from the right edge of the screen, accounting for padding
-        right_margin = 10 # Define the margin from the edge
+        right_margin = 10  # Define the margin from the edge
         current_x = constants.SCREEN_WIDTH - right_margin
-        start_y = right_margin # Use the same margin for the top
+        start_y = right_margin  # Use the same margin for the top
 
         # Iterate backwards through icons and indices
         for i in range(len(constants.GAME_SPEED_ICONS) - 1, -1, -1):
@@ -708,9 +725,16 @@ class HUDManager:
 
             # Determine color based on if this is the *active* speed? (Needs active speed index)
             # TODO: Highlight the active button later if needed.
-            button_rect = pygame.Rect(button_x, start_y, constants.GAME_SPEED_BUTTON_SIZE, constants.GAME_SPEED_BUTTON_SIZE)
+            button_rect = pygame.Rect(
+                button_x,
+                start_y,
+                constants.GAME_SPEED_BUTTON_SIZE,
+                constants.GAME_SPEED_BUTTON_SIZE,
+            )
             pygame.draw.rect(screen, constants.SLIDER_BG_COLOR, button_rect, border_radius=3)
-            pygame.draw.rect(screen, constants.BOTTOM_PANEL_BORDER_COLOR, button_rect, 1, border_radius=3)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, button_rect, 1, border_radius=3
+            )
 
             icon_surf = self.font.render(icon, True, constants.UI_TEXT_COLOR)
             icon_rect = icon_surf.get_rect(center=button_rect.center)
@@ -719,3 +743,183 @@ class HUDManager:
             self.speed_control_button_rects[i] = button_rect
             # Move current_x to the left for the next button, including padding
             current_x = button_x - constants.GAME_SPEED_BUTTON_PADDING
+
+    def _draw_research_ui(
+        self, screen: pygame.Surface, planet: Planet, research_system: ResearchSystem
+    ):
+        """Draws only the ship type selection buttons in the Research tab. Buttons are dynamically sized and centered."""
+        from ..enums import ShipType
+
+        # Layout
+        panel_start_x = (constants.SCREEN_WIDTH - constants.BOTTOM_PANEL_WIDTH) / 2
+        panel_top_y = constants.SCREEN_HEIGHT - constants.BOTTOM_PANEL_HEIGHT
+        panel_width = constants.BOTTOM_PANEL_WIDTH
+        panel_height = constants.BOTTOM_PANEL_HEIGHT
+        # Dynamic sizing
+        num_buttons = 2
+        button_width = int(panel_width * 0.32)
+        button_height = int(panel_height * 0.32)
+        button_padding = int(panel_width * 0.04)
+        total_buttons_width = num_buttons * button_width + (num_buttons - 1) * button_padding
+        # Center horizontally and vertically
+        buttons_start_x = panel_start_x + (panel_width - total_buttons_width) / 2
+        buttons_center_y = panel_top_y + panel_height / 2
+        button_top = int(buttons_center_y - button_height / 2)
+        # Font size scales with button height
+        font_size = max(18, int(button_height * 0.45))
+        ship_types = [ShipType.MINER, ShipType.SCANNER]
+        self.research_ship_type_tab_rects = {}
+        for i, stype in enumerate(ship_types):
+            rect = pygame.Rect(
+                int(buttons_start_x + i * (button_width + button_padding)),
+                button_top,
+                button_width,
+                button_height,
+            )
+            color = constants.BOTTOM_PANEL_TAB_COLOR
+            pygame.draw.rect(screen, color, rect, border_radius=round(button_height * 0.18))
+            pygame.draw.rect(
+                screen,
+                constants.BOTTOM_PANEL_BORDER_COLOR,
+                rect,
+                2,
+                border_radius=round(button_height * 0.18),
+            )
+            font = pygame.font.SysFont(None, font_size, bold=True)
+            label = stype.value
+            surf = font.render(label, True, constants.UI_TEXT_COLOR)
+            surf_rect = surf.get_rect(center=rect.center)
+            screen.blit(surf, surf_rect)
+            self.research_ship_type_tab_rects[stype] = rect
+        # No research items are shown here. The actual research window/modal will be drawn elsewhere when a type is selected.
+
+    def _draw_research_modal(self, screen: pygame.Surface, planet, research_system):
+        """Draws a modal overlay with the research tree for the selected ship type, centered in the middle of the screen as a separate window."""
+        ship_type = self.research_modal_ship_type
+        # Draw semi-transparent overlay over the whole screen
+        overlay = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))  # RGBA, alpha=160 for dimming
+        screen.blit(overlay, (0, 0))
+        # Modal window size and position (larger)
+        modal_width = int(constants.SCREEN_WIDTH * 0.56)
+        modal_height = int(constants.SCREEN_HEIGHT * 0.66)
+        modal_x = (constants.SCREEN_WIDTH - modal_width) // 2
+        modal_y = (constants.SCREEN_HEIGHT - modal_height) // 2
+        modal_rect = pygame.Rect(modal_x, modal_y, modal_width, modal_height)
+        # Modal background
+        pygame.draw.rect(screen, constants.BOTTOM_PANEL_COLOR, modal_rect, border_radius=18)
+        pygame.draw.rect(
+            screen, constants.BOTTOM_PANEL_BORDER_COLOR, modal_rect, 4, border_radius=18
+        )
+        # Title
+        font = pygame.font.SysFont(None, max(28, int(modal_height * 0.09)), bold=True)
+        title = f"{ship_type} Research"
+        title_surf = font.render(title, True, constants.UI_TEXT_COLOR)
+        title_rect = title_surf.get_rect(center=(modal_rect.centerx, modal_rect.top + 44))
+        screen.blit(title_surf, title_rect)
+        # Close button
+        close_size = int(modal_height * 0.09)
+        close_rect = pygame.Rect(
+            modal_rect.right - close_size - 22, modal_rect.top + 22, close_size, close_size
+        )
+        pygame.draw.rect(
+            screen, constants.SLIDER_BG_COLOR, close_rect, border_radius=close_size // 3
+        )
+        pygame.draw.rect(
+            screen,
+            constants.BOTTOM_PANEL_BORDER_COLOR,
+            close_rect,
+            2,
+            border_radius=close_size // 3,
+        )
+        x_font = pygame.font.SysFont(None, close_size - 2, bold=True)
+        x_surf = x_font.render("×", True, constants.UI_TEXT_COLOR)
+        x_rect = x_surf.get_rect(center=close_rect.center)
+        screen.blit(x_surf, x_rect)
+        self.research_modal_close_rect = close_rect
+        # Research items
+        research_defs = research_system.research_defs[ship_type]
+        research_levels = research_system.research_levels[ship_type]
+        item_font = pygame.font.SysFont(None, max(18, int(modal_height * 0.07)), bold=True)
+        body_font = pygame.font.SysFont(None, max(15, int(modal_height * 0.055)))
+        effect_font = pygame.font.SysFont(None, max(15, int(modal_height * 0.055)), bold=True)
+        item_width = modal_width * 0.44
+        item_height = modal_height * 0.29  # Larger cards
+        item_padding = modal_width * 0.08
+        start_x = modal_x + (modal_width - (2 * item_width + item_padding)) / 2
+        start_y = title_rect.bottom + 36  # More space below title
+        for i, (key, info) in enumerate(research_defs.items()):
+            col = i % 2
+            row = i // 2
+            x = start_x + col * (item_width + item_padding)
+            y = start_y + row * (item_height + 38)
+            item_rect = pygame.Rect(x, y, item_width, item_height)
+            pygame.draw.rect(screen, constants.SLIDER_BG_COLOR, item_rect, border_radius=12)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, item_rect, 1, border_radius=12
+            )
+            # Name and level (left-aligned, top)
+            name = info["display_name"]
+            level = research_levels[key]
+            max_level = info["max_level"]
+            name_surf = item_font.render(
+                f"{name} [{level}/{max_level}]", True, constants.UI_TEXT_COLOR
+            )
+            name_y = item_rect.top + 18
+            screen.blit(name_surf, (item_rect.left + 22, name_y))
+            # Cost (left-aligned, below name)
+            next_cost = research_system.get_next_level_cost(key, ship_type)
+            cost_y = name_y + name_surf.get_height() + 10
+            cost_x = item_rect.left + 22
+            if next_cost:
+                for idx, (res, amount) in enumerate(next_cost.items()):
+                    color = constants.UI_TEXT_COLOR
+                    if res.lower() == "credits":
+                        color = constants.CREDITS_COLOR
+                    elif res.lower() == "plasma":
+                        color = constants.PLASMA_COLOR
+                    elif res.lower() == "tritanium":
+                        color = constants.TRITANIUM_COLOR
+                    part_surf = body_font.render(f"{amount} {res}", True, color)
+                    screen.blit(part_surf, (cost_x, cost_y))
+                    cost_x += part_surf.get_width() + 16
+            # Effect (left-aligned, above button)
+            effect = info["effect_per_level"]
+            effect_surf = effect_font.render(f"+{int(effect*100)}%/lvl", True, constants.WHITE)
+            effect_y = item_rect.bottom - 38 - effect_surf.get_height()
+            screen.blit(effect_surf, (item_rect.left + 22, effect_y))
+            # Button (bottom right corner, dynamic size)
+            btn_width = max(80, min(int(item_width * 0.32), 160))
+            btn_height = max(28, min(int(item_height * 0.28), 48))
+            btn_x = item_rect.right - btn_width - 22
+            btn_y = item_rect.bottom - btn_height - 18
+            can_buy = next_cost and research_system.can_research(key, ship_type, planet.storage)
+            button_color = (
+                constants.BOTTOM_PANEL_TAB_COLOR if can_buy else constants.SLIDER_BG_COLOR
+            )
+            text_color = constants.UI_TEXT_COLOR if can_buy else constants.GRAY
+            pygame.draw.rect(
+                screen,
+                button_color,
+                (btn_x, btn_y, btn_width, btn_height),
+                border_radius=btn_height // 3,
+            )
+            pygame.draw.rect(
+                screen,
+                constants.BOTTOM_PANEL_BORDER_COLOR,
+                (btn_x, btn_y, btn_width, btn_height),
+                1,
+                border_radius=btn_height // 3,
+            )
+            btn_text = "Research" if next_cost else "MAXED"
+            btn_font_size = max(16, int(btn_height * 0.55))
+            btn_font = pygame.font.SysFont(None, btn_font_size, bold=False)
+            btn_surf = btn_font.render(btn_text, True, text_color)
+            btn_rect = btn_surf.get_rect(center=(btn_x + btn_width / 2, btn_y + btn_height / 2))
+            screen.blit(btn_surf, btn_rect)
+            # Store button rect for click detection
+            if not hasattr(self, "research_modal_button_rects"):
+                self.research_modal_button_rects = {}
+            self.research_modal_button_rects[(ship_type, key)] = pygame.Rect(
+                btn_x, btn_y, btn_width, btn_height
+            )

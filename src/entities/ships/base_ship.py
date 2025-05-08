@@ -28,6 +28,7 @@ class Ship(Entity):
         speed: float,
         home_planet: Planet,
         ship_id: int | None = None,
+        *args, **kwargs
     ):
         # Use passed-in values, defaults should be handled by subclasses using constants
         assigned_id = ship_id if ship_id is not None else next(Ship._id_counter)

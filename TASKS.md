@@ -143,3 +143,41 @@
 - Description: Investigate and fix bug where `MiningShip` might get stuck or assigned incorrectly when returning to base and receiving new orders immediately.
 - Priority: High
 - Dependencies: 10, 18
+
+## Task ID: 25
+- Status: DONE
+- Description: Create `ResearchSystem` class. This class will manage available research items, their costs, current research levels, and methods to apply their effects.
+- Priority: High
+- Dependencies: None
+
+## Task ID: 26
+- Status: DONE
+- Description: Define specific researchable upgrades (ship speed, cargo size, mining speed, scan speed, scan radius), their incremental effects per level, and their costs (in Tritanium, Credits, Plasma). Store these definitions within or accessible by the `ResearchSystem`.
+- Priority: High
+- Dependencies: 25
+
+## Task ID: 27
+- Status: DONE
+- Description: Integrate `ResearchSystem` with `HUDManager` to display available research options, their current levels, costs for the next level, and a button to purchase/research them in the "Research" tab.
+- Priority: Medium
+- Dependencies: 25, 26
+
+## Task ID: 28
+- Status: DONE
+- Description: Implement the logic to purchase research. This includes: checking if the player has enough resources, deducting resources from the central planet's storage, and updating the research level in the `ResearchSystem`.
+- Priority: Medium
+- Dependencies: 25, 26, 11
+
+## Task ID: 29
+- Status: Done
+- Description: Implement the application of research effects. Modify relevant ship classes (e.g., `Spaceship`, `MiningShip`, `ScannerShip`) or their admirals to query the `ResearchSystem` for current bonus levels and apply them to their stats (e.g., speed, cargo capacity, mining rate, scan speed, scan radius).
+- Priority: Medium
+- Dependencies: 25, 26, 6, 9
+
+## Task ID: 30
+- Status: TODO
+- Description: Add unit tests for the `ResearchSystem`, covering aspects like initializing research items, checking costs, purchasing upgrades, and verifying that effects are correctly calculated/applied (even if indirectly through mock objects).
+- Priority: Medium
+- Dependencies: 25
+
+# TODO: click on Random + button unassigns a ship from category with the most ships

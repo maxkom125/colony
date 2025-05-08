@@ -169,7 +169,7 @@ def calculate_dependent_constants():
     # Re-calculate based on the potentially updated SCREEN_WIDTH
     ASSIGNMENT_AREA_X = SCREEN_WIDTH - 140
     BOTTOM_PANEL_WIDTH = int(SCREEN_WIDTH * 0.6)
-    BOTTOM_PANEL_HEIGHT = int(SCREEN_WIDTH * 0.04)
+    BOTTOM_PANEL_HEIGHT = int(SCREEN_WIDTH * 0.05)
     GAME_SPEED_AREA_TOP_RIGHT = (SCREEN_WIDTH - 10, 10)  # X depends on SCREEN_WIDTH
 
     print(f"DEBUG: Recalculated constants based on SCREEN_WIDTH={SCREEN_WIDTH}")

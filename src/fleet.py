@@ -6,6 +6,7 @@ from .entities.asteroid import Asteroid
 from .entities.planet import Planet
 from .systems.admirals.miner_admiral import MinerAdmiral
 from .systems.admirals.scanner_admiral import ScannerAdmiral
+from .enums import ShipType
 
 
 class Fleet:
@@ -71,6 +72,10 @@ class Fleet:
         """Returns a list of all registered ships."""
         return list(self.ships.values())
 
-    def get_ships_by_type(self, ship_type: type) -> list[Ship]:
+    def get_ships_by_type(self, ship_type: ShipType | type) -> list[Ship]:
         """Returns a list of ships matching the specified type."""
-        return [ship for ship in self.ships.values() if isinstance(ship, ship_type)]
+        if isinstance(ship_type, ShipType):
+            ship_class = ship_type.ship_class
+        else:
+            ship_class = ship_type
+        return [ship for ship in self.ships.values() if isinstance(ship, ship_class)]

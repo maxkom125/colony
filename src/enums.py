@@ -22,10 +22,25 @@ class ShipState(Enum):
         return [member.value for member in cls]
 
 class ShipType(Enum):
-    UNKNOWN = "Unknown"
-    MINER = "Miner"
-    SCANNER = "Scanner"
+    UNKNOWN = ("Unknown", "src.entities.ships.base_ship.Ship")
+    MINER = ("Miner", "src.entities.ships.mining_ship.MiningShip")
+    SCANNER = ("Scanner", "src.entities.ships.scanner_ship.ScannerShip")
     # Add other types like COMBAT, TRANSPORT etc.
+
+    def __new__(cls, label: str, class_path: str):
+        obj = object.__new__(cls)
+        obj._value_ = label
+        obj.class_path = class_path
+        return obj
+
+    @property
+    def ship_class(self):
+        if self.class_path is None:
+            return None
+        module_path, class_name = self.class_path.rsplit('.', 1)
+        import importlib
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name)
 
     def __str__(self):
         # so str(ShipType.MINER) == "Miner"
