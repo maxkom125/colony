@@ -419,6 +419,9 @@ class HUDManager:
                     state_text += f" (Dump: {ship.dumping_timer:.1f}s)"
                 state_text += f" Cargo: {int(ship.get_cargo_total())}"
 
+            # Add Fuel status for all ships
+            state_text += f" Fuel: {int(ship.fuel)}/{int(ship.fuel_max_capacity)}"
+
             text_surface = self.font.render(
                 state_text, True, constants.UI_TEXT_COLOR
             )  # Use self.font
@@ -431,7 +434,7 @@ class HUDManager:
         storage_x_offset = 10
         for resource_type_enum in ResourceType:  # Iterate through Enum
             resource_type = resource_type_enum.value  # Get string value for dict key
-            amount = planet.storage.get(resource_type, 0)  # Use .get for safety
+            amount = planet.storage.get(resource_type_enum, 0)  # Use .get for safety
 
             color = constants.WHITE
             if resource_type_enum == ResourceType.TRITANIUM:

@@ -3,6 +3,7 @@ import pytest
 
 # Objects to test
 from src.systems.admirals.base_admiral import Admiral, DuplicateShipError, ShipNotFoundError
+from src.enums import ShipState, ShipType
 
 # Mock Ship class for testing
 class MockShip:
@@ -15,6 +16,7 @@ class MockShip:
         else:
             self.id = MockShip._next_id
             MockShip._next_id += 1
+        self.type = ShipType.UNKNOWN
 
 @pytest.fixture
 def admiral():
@@ -60,7 +62,7 @@ def test_add_ship_duplicate_raises_error(admiral):
     with pytest.raises(DuplicateShipError) as excinfo:
         admiral.add_ship(ship2_duplicate_id)
     
-    assert f"Ship {ship1.id} already managed" in str(excinfo.value)
+    assert f"{ship1.type} {ship1.id} already managed" in str(excinfo.value)
     # Ensure only the first ship is actually in the dictionary
     assert admiral.get_ship_count() == 1
     assert admiral.ships[ship1.id] is ship1

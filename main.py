@@ -43,8 +43,8 @@ def main():
 
     # Screen setup
     try:
-        # screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
-        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)  # Try fullscreen
+        screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+        # screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)  # Try fullscreen
         # Update constants with actual screen size if fullscreen is used
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = screen.get_size()
         print(f"Screen size set to: {constants.SCREEN_WIDTH}x{constants.SCREEN_HEIGHT}")
@@ -124,6 +124,9 @@ def main():
     miner1 = MiningShip(
         position=Vector2(50, -constants.PLANET_RADIUS - 50), home_planet=central_planet
     )
+    # Set fuel to max capacity
+    scanner1.fuel = scanner1.fuel_max_capacity / 3
+    miner1.fuel = miner1.fuel_max_capacity
 
     fleet.add_ship(scanner1)
     fleet.add_ship(miner1)

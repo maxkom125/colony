@@ -50,6 +50,11 @@ MINING_SHIP_COLOR = (200, 200, 0)  # Yellow (for Miner)
 SHIP_SPEED = 100.0  # Default speed
 SCANNER_SPEED = 120.0  # Scanner specific speed - ADDED BACK
 MINER_SPEED = 80.0  # Miner specific speed
+BASE_FUEL_REFILL_RATE = 2
+BASE_FUEL_CONSUMPTION_RATE = 0.01
+BASE_FUEL_MAX_CAPACITY = 100
+PLASMA_TO_FUEL_CONVERSION_RATE = 0.2
+NO_FUEL_MULTIPLIER = 0.1
 
 # Visited Asteroid Color
 VISITED_ASTEROID_COLOR = (100, 100, 100)  # Darker gray
@@ -149,15 +154,6 @@ GAME_SPEED_ICONS = ["||", ">", ">>", ">>>"]  # Text icons for buttons
 GAME_SPEED_BUTTON_SIZE = 30
 GAME_SPEED_BUTTON_PADDING = 5
 GAME_SPEED_AREA_TOP_RIGHT = None  # Calculated in calculate_dependent_constants()
-
-# Set of ship states considered "moving" states for update_movement logic
-MOVING_SHIP_STATES = {
-    ShipState.MOVING_TO_ASTEROID,
-    ShipState.MOVING_TO_SCAN,
-    ShipState.MOVING_TO_POSITION,
-    ShipState.RETURNING_TO_BASE,
-}
-
 
 # --- Function to recalculate constants dependent on screen size ---
 def calculate_dependent_constants():

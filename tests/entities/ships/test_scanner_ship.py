@@ -170,8 +170,9 @@ def test_get_arrival_threshold_moving_to_scan(home_planet_fixture):
 def test_get_arrival_threshold_not_moving_to_scan(home_planet_fixture):
     """Test arrival threshold when not moving to scan."""
     scanner = ScannerShip(Vector2(0, 0), home_planet=home_planet_fixture)
-    # Test with IDLE state, could be any other non-MOVING_TO_SCAN state
-    scanner.state = ShipState.IDLE
+    # Test with IDLE state, could be any other non-MOVING_TO_SCAN and non-IDLE state
+    scanner.state = ShipState.RETURNING_TO_BASE
+    scanner.target = scanner.home
 
     # We need the base class threshold to compare. We can get it by calling the
     # super() method directly, or by creating a base Ship instance (less ideal).

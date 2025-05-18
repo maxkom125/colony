@@ -1,5 +1,6 @@
 import math
 from pygame.math import Vector2  # Import Vector2
+from src.enums import ResourceType
 from typing import TYPE_CHECKING
 
 # Conditional imports for type hints to prevent circular dependency
@@ -134,3 +135,18 @@ def check_path_for_obstacles(
                 closest_obstacle = obs  # Return the object itself
 
     return closest_obstacle
+
+def convert_resource_type_to_enum(resource_type: str | ResourceType) -> ResourceType:
+    """Converts a resource type string to a ResourceType enum.
+    If resource_type is already an enum, it is returned unchanged.
+    If resource_type is a string, it is converted to an enum member.
+    If resource_type is not a string or enum, a ValueError is raised.
+    """
+    if isinstance(resource_type, ResourceType):
+        return resource_type
+    elif isinstance(resource_type, str):
+        try:
+            return ResourceType(resource_type)
+        except ValueError:
+            raise ValueError(f"Invalid resource type: {resource_type}")
+

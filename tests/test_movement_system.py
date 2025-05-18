@@ -4,6 +4,7 @@ from pygame.math import Vector2
 from src.systems.movement_system import update_ship_movement
 from src.entities.asteroid import Asteroid
 from src.entities.planet import Planet
+from src.entities.ships.base_ship import Ship
 from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
 from src import constants # Import constants for arrival buffer
@@ -18,6 +19,7 @@ class DummyObstacle:
 def test_no_target_returns_current_state() -> None:
     """Test that ship doesn't move without a target."""
     ship = ScannerShip(Vector2(10, 20), home_planet=None) # Home planet irrelevant here
+    ship.fuel = ship.fuel_max_capacity
     ship.position = Vector2(10, 20)
     ship.angle = 0.5
     ship.target = None
@@ -33,6 +35,7 @@ def test_arrival_to_asteroid() -> None:
     """Test arrival when ship starts just within the threshold of an asteroid."""
     asteroid = Asteroid(Vector2(100, 100), radius=10, color=(0, 0, 0))
     ship = ScannerShip(Vector2(0, 0), home_planet=None) # Home planet irrelevant
+    ship.fuel = ship.fuel_max_capacity
 
     # Position ship just inside arrival threshold
     arrival_dist = ship.radius + asteroid.radius + constants.ARRIVAL_DISTANCE_BUFFER
@@ -55,6 +58,7 @@ def test_arrival_to_planet() -> None:
     """Test arrival when ship starts just within the threshold of a planet."""
     planet = Planet(Vector2(50, 50), radius=20, color=(0, 0, 0))
     ship = MiningShip(Vector2(0, 0), home_planet=planet) # Home planet is relevant
+    ship.fuel = ship.fuel_max_capacity
 
     # Position ship just inside arrival threshold
     arrival_dist = ship.radius + planet.radius + constants.ARRIVAL_DISTANCE_BUFFER
@@ -78,7 +82,7 @@ def test_direct_movement_no_obstacles_reaches_target() -> None:
     target_pos = Vector2(100, 0)
     asteroid = Asteroid(target_pos, radius=1, color=(0, 0, 0))
     start_pos = Vector2(0, 0)
-    ship = ScannerShip(start_pos, home_planet=None)
+    ship = Ship(start_pos, constants.SHIP_SIZE, constants.SHIP_COLOR, constants.SCANNER_SPEED, home_planet=None, fuel=100)
     ship.position = start_pos
     ship.angle = 0.0
     ship.set_target(asteroid)
@@ -110,6 +114,7 @@ def test_direct_movement_no_obstacles() -> None:
     asteroid = Asteroid(target_pos, radius=1, color=(0, 0, 0))
     start_pos = Vector2(0, 0)
     ship = ScannerShip(start_pos, home_planet=None)
+    ship.fuel = ship.fuel_max_capacity
     ship.position = start_pos
     ship.angle = 0.0
     ship.set_target(asteroid)
@@ -133,6 +138,7 @@ def test_avoidance_maneuver_changes_direction() -> None:
     # Place target ahead
     asteroid = Asteroid(Vector2(200, 0), radius=1, color=(0, 0, 0))
     ship = ScannerShip(Vector2(0, 0), home_planet=None)
+    ship.fuel = ship.fuel_max_capacity
     ship.position = Vector2(0, 0)
     ship.angle = 0.0
     ship.set_target(asteroid)
@@ -164,6 +170,7 @@ def test_update_ship_movement_unknown_target_type() -> None:
     """Test movement system handles non-entity targets gracefully."""
     # If target is not an Asteroid or Planet, movement should be no-op
     ship = ScannerShip(Vector2(1, 1), home_planet=None)
+    ship.fuel = ship.fuel_max_capacity
     ship.position = Vector2(1, 1)
     ship.angle = 1.23
     class DummyTarget: pass
@@ -180,6 +187,7 @@ def test_avoidance_when_obstacle_at_ship_position() -> None:
     # Target to the right
     asteroid = Asteroid(Vector2(300, 0), radius=1, color=(0, 0, 0))
     ship = ScannerShip(Vector2(0, 0), home_planet=None)
+    ship.fuel = ship.fuel_max_capacity
     ship.position = Vector2(0, 0)
     ship.angle = 0
     ship.set_target(asteroid)
@@ -213,7 +221,7 @@ def test_degenerate_zero_length_move_vector(monkeypatch) -> None:
     monkeypatch.setattr(constants, 'ARRIVAL_DISTANCE_BUFFER', -1000) # Ensure target isn't arrived
     # Asteroid at same position with zero radius
     asteroid = Asteroid(Vector2(0, 0), radius=0, color=(0, 0, 0))
-    ship = ScannerShip(Vector2(0, 0), home_planet=None)
+    ship = Ship(Vector2(0, 0), constants.SHIP_SIZE, constants.SHIP_COLOR, constants.SCANNER_SPEED, home_planet=None, fuel=1000)
     ship.position = Vector2(0, 0)
     ship.angle = 0
     ship.set_target(asteroid)

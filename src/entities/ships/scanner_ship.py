@@ -86,7 +86,7 @@ class ScannerShip(Ship):
         #     pass # Base class handles movement and arrival
 
     def get_arrival_threshold(self):
-        if self.state == ShipState.MOVING_TO_SCAN:
+        if self.state in [ShipState.MOVING_TO_SCAN, ShipState.IDLE]:
             return self.scan_range
         else:
             return super().get_arrival_threshold()

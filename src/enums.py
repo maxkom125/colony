@@ -11,15 +11,31 @@ class ShipState(Enum):
     MINING = auto()
     RETURNING_TO_BASE = auto()
     DUMPING = auto()
+    REFUELING = auto()
 
     def __str__(self):
         # so str(ShipState.IDLE) == "IDLE"
-        return self.value
+        return self.name
 
     @classmethod
     def list(cls) -> List[str]:
         # e.g. ["IDLE", "MOVING_TO_ASTEROID"]
-        return [member.value for member in cls]
+        return [member.name for member in cls]
+
+    @classmethod
+    def moving_ship_states(cls):
+        """Returns the set of ShipState members considered as 'moving'."""
+        return {
+            cls.MOVING_TO_ASTEROID,
+            cls.MOVING_TO_SCAN,
+            cls.MOVING_TO_POSITION,
+            cls.RETURNING_TO_BASE,
+        }
+
+    @classmethod
+    def refilling_ship_states(cls):
+        """Returns the set of ShipState members considered as 'refilling' (fuel loading)."""
+        return {cls.DUMPING, cls.REFUELING}
 
 class ShipType(Enum):
     UNKNOWN = ("Unknown", "src.entities.ships.base_ship.Ship")
@@ -67,7 +83,12 @@ class ResourceType(Enum):
         return self.value
 
     @classmethod
-    def list(cls) -> List[str]:
+    def list(cls) -> List['ResourceType']:
+        # e.g. [ResourceType.TRITANIUM, ResourceType.CREDITS, ResourceType.PLASMA]
+        return [member for member in cls]
+
+    @classmethod
+    def list_names(cls) -> List[str]:
         # e.g. ["Tritanium", "Credits", "Plasma"]
         return [member.value for member in cls]
 

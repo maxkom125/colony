@@ -9,7 +9,7 @@ from src.systems.admirals.scanner_admiral import ScannerAdmiral
 from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.asteroid import Asteroid
 from src.entities.planet import Planet
-from src.enums import ShipState
+from src.enums import ShipState, ShipType
 from src import constants
 
 
@@ -30,6 +30,9 @@ class MockScannerShip(MagicMock):
         self.position = position
         self.home = home_planet
         self.target = target
+        self.type = ShipType.SCANNER
+        self.fuel_max_capacity = constants.BASE_FUEL_MAX_CAPACITY
+        self.fuel = self.fuel_max_capacity
         self.scan_range = constants.SCANNER_SCAN_RANGE # Include relevant attributes
         self.scan_rate = constants.SCANNER_SCAN_RATE
         self.scan_timer = 0.0
@@ -137,7 +140,7 @@ def test_add_ship_duplicate_handled_by_base(scanner_admiral, mock_scanner, capsy
     assert scanner_admiral.get_ship_count() == 1
     assert scanner_admiral.ships[mock_scanner.id] is mock_scanner
     # Check that the base class error message was logged
-    assert f"INFO: Ship {mock_scanner.id} already managed by this Admiral." in captured.out
+    assert f"INFO: {mock_scanner.type} {mock_scanner.id} already managed by this Admiral." in captured.out
 
 def test_remove_ship_success(scanner_admiral, mock_scanner):
     """Test removing an existing ScannerShip."""
@@ -191,7 +194,7 @@ def test_issue_command_idle_calls_base(mock_super_issue_command, scanner_admiral
 
     scanner_admiral.issue_command(mock_scanner)
 
-    mock_super_issue_command.assert_called_once_with(mock_scanner)
+    mock_super_issue_command.assert_called_once_with(mock_scanner, None)
 
 # --- Tests for issue_scanning_command --- #
 

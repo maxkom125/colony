@@ -35,9 +35,9 @@ class Asteroid(Entity):
         dominant_resource = next((
             res for res, amount in self.resources.items() if amount > 0
         ), None)
-        if dominant_resource == "Tritanium": return constants.TRITANIUM_COLOR
-        if dominant_resource == "Credits": return constants.CREDITS_COLOR
-        if dominant_resource == "Plasma": return constants.PLASMA_COLOR
+        if dominant_resource == ResourceType.TRITANIUM: return constants.TRITANIUM_COLOR
+        if dominant_resource == ResourceType.CREDITS: return constants.CREDITS_COLOR
+        if dominant_resource == ResourceType.PLASMA: return constants.PLASMA_COLOR
         return constants.VISITED_ASTEROID_COLOR
 
     def draw(self, surface, world_to_screen_func, zoom_level, font):
@@ -56,7 +56,7 @@ class Asteroid(Entity):
             dominant_res = next((res for res, amount in self.resources.items() if amount > 0), None)
             if dominant_res:
                 amount = self.resources[dominant_res]
-                resource_text = f"{dominant_res[:1]}:{int(amount)}"
+                resource_text = f"{dominant_res.value[:1]}:{int(amount)}"
                 text_surface = font.render(resource_text, True, constants.WHITE)
                 text_rect = text_surface.get_rect(center=(screen_pos.x, screen_pos.y + screen_radius + 10))
                 surface.blit(text_surface, text_rect)

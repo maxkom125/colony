@@ -30,16 +30,16 @@ def test_initial_storage_values(basic_planet):
 # --- Tests for add_resources --- 
 
 def test_add_resources_positive(basic_planet):
-    initial_tritanium = basic_planet.storage["Tritanium"]
-    initial_credits = basic_planet.storage["Credits"]
-    basic_planet.add_resources({"Tritanium": 50, "Credits": 10})
-    assert basic_planet.storage["Tritanium"] == initial_tritanium + 50
-    assert basic_planet.storage["Credits"] == initial_credits + 10
+    initial_tritanium = basic_planet.storage[ResourceType.TRITANIUM]
+    initial_credits = basic_planet.storage[ResourceType.CREDITS]
+    basic_planet.add_resources({ResourceType.TRITANIUM: 50, ResourceType.CREDITS: 10})
+    assert basic_planet.storage[ResourceType.TRITANIUM] == initial_tritanium + 50
+    assert basic_planet.storage[ResourceType.CREDITS] == initial_credits + 10
 
 def test_add_resources_negative_ignored(basic_planet):
-    initial_tritanium = basic_planet.storage["Tritanium"]
-    basic_planet.add_resources({"Tritanium": -50})
-    assert basic_planet.storage["Tritanium"] == initial_tritanium # Should not change
+    initial_tritanium = basic_planet.storage[ResourceType.TRITANIUM]
+    basic_planet.add_resources({ResourceType.TRITANIUM: -50})
+    assert basic_planet.storage[ResourceType.TRITANIUM] == initial_tritanium # Should not change
 
 def test_add_resources_unknown_ignored(basic_planet):
     initial_storage = basic_planet.storage.copy()
@@ -49,17 +49,17 @@ def test_add_resources_unknown_ignored(basic_planet):
 # --- Tests for has_resources --- 
 
 def test_has_resources_sufficient(basic_planet):
-    basic_planet.add_resources({"Tritanium": 100, "Credits": 50})
-    assert basic_planet.has_resources({"Tritanium": 100})
-    assert basic_planet.has_resources({"Credits": 50})
+    basic_planet.add_resources({ResourceType.TRITANIUM: 100, ResourceType.CREDITS: 50})
+    assert basic_planet.has_resources({ResourceType.TRITANIUM: 100})
+    assert basic_planet.has_resources({ResourceType.CREDITS: 50})
 
 def test_has_resources_insufficient(basic_planet):
-    assert not basic_planet.has_resources({"Tritanium": 100})
-    basic_planet.add_resources({"Tritanium": 100, "Credits": 50})
-    assert not basic_planet.has_resources({"Tritanium": 150})
-    assert not basic_planet.has_resources({"Credits": 100})
-    assert not basic_planet.has_resources({"Plasma": 100})
-    assert not basic_planet.has_resources({"Tritanium": 100, "Credits": 250})
+    assert not basic_planet.has_resources({ResourceType.TRITANIUM: 100})
+    basic_planet.add_resources({ResourceType.TRITANIUM: 100, ResourceType.CREDITS: 50})
+    assert not basic_planet.has_resources({ResourceType.TRITANIUM: 150})
+    assert not basic_planet.has_resources({ResourceType.CREDITS: 100})
+    assert not basic_planet.has_resources({ResourceType.PLASMA: 100})
+    assert not basic_planet.has_resources({ResourceType.TRITANIUM: 100, ResourceType.CREDITS: 250})
 
 def test_has_resources_unknown_resource(basic_planet):
     # Should implicitly be False as storage.get defaults to 0
@@ -67,26 +67,26 @@ def test_has_resources_unknown_resource(basic_planet):
 
 def test_has_resources_empty_request(basic_planet):
     assert basic_planet.has_resources({}) # Should always be True
-    assert basic_planet.has_resources({"Tritanium": 0})
+    assert basic_planet.has_resources({ResourceType.TRITANIUM: 0})
 
 # --- Tests for remove_resources --- 
 
 def test_remove_resources_success(basic_planet):
     # Add some resources first to test removal
-    basic_planet.add_resources({"Tritanium": 100, "Credits": 50})
-    initial_tritanium = basic_planet.storage["Tritanium"]
-    initial_credits = basic_planet.storage["Credits"]
-    costs = {"Tritanium": 50, "Credits": 20}
+    basic_planet.add_resources({ResourceType.TRITANIUM: 100, ResourceType.CREDITS: 50})
+    initial_tritanium = basic_planet.storage[ResourceType.TRITANIUM]
+    initial_credits = basic_planet.storage[ResourceType.CREDITS]
+    costs = {ResourceType.TRITANIUM: 50, ResourceType.CREDITS: 20}
     
     result = basic_planet.remove_resources(costs)
     
     assert result is True
-    assert basic_planet.storage["Tritanium"] == initial_tritanium - costs["Tritanium"]
-    assert basic_planet.storage["Credits"] == initial_credits - costs["Credits"]
+    assert basic_planet.storage[ResourceType.TRITANIUM] == initial_tritanium - costs[ResourceType.TRITANIUM]
+    assert basic_planet.storage[ResourceType.CREDITS] == initial_credits - costs[ResourceType.CREDITS]
 
 def test_remove_resources_fail_insufficient(basic_planet):
     initial_storage = basic_planet.storage.copy()
-    costs = {"Tritanium": 500}
+    costs = {ResourceType.TRITANIUM: 500}
 
     result = basic_planet.remove_resources(costs)
 
@@ -95,7 +95,7 @@ def test_remove_resources_fail_insufficient(basic_planet):
 
 def test_remove_resources_fail_one_of_multiple(basic_planet):
     initial_storage = basic_planet.storage.copy()
-    costs = {"Tritanium": 50, "Credits": 500}
+    costs = {ResourceType.TRITANIUM: 50, ResourceType.CREDITS: 500}
 
     result = basic_planet.remove_resources(costs)
 
@@ -111,7 +111,7 @@ def test_remove_resources_empty_request(basic_planet):
 def test_remove_resources_insufficient(basic_planet):
     # Starts with 0, trying to remove should fail
     initial_storage = basic_planet.storage.copy()
-    costs = {"Tritanium": 50} # Try to remove from 0
+    costs = {ResourceType.TRITANIUM: 50} # Try to remove from 0
     result = basic_planet.remove_resources(costs)
 
     assert result is False

@@ -115,16 +115,27 @@ def test_update_mining_and_transition(home_planet_fixture):
 def test_update_dumping_completes_and_transitions(home_planet_fixture):
     planet = home_planet_fixture
     initial_tritanium = planet.storage[
-        "Tritanium"
+        ResourceType.TRITANIUM
     ]  # Get initial amount from fixture/default
-    initial_credits = planet.storage["Credits"]
+    initial_credits = planet.storage[ResourceType.CREDITS]
 
     miner = MiningShip(Vector2(0, 0), home_planet=planet)
+    miner.fuel = miner.fuel_max_capacity # Add fuel
+
+    # Add a mock admiral
+    mock_admiral = MagicMock()
+    # Define what issue_command should do for this test context
+    def issue_command_side_effect(ship):
+        ship.set_state(ShipState.IDLE)
+        ship.set_target(None)
+    mock_admiral.issue_command = MagicMock(side_effect=issue_command_side_effect)
+    miner.admiral = mock_admiral
+
     miner.state = ShipState.DUMPING
     miner.target = None
     miner.dumping_timer = 0.0
     # Use multiple cargo types as originally intended
-    miner.cargo = {"Tritanium": 10, "Credits": 5, "Plasma": 0}
+    miner.cargo = {ResourceType.TRITANIUM: 10, ResourceType.CREDITS: 5, ResourceType.PLASMA: 0}
     cargo_to_dump = miner.cargo.copy()  # Keep copy for assertion
     obstacles = []
 
@@ -133,9 +144,9 @@ def test_update_dumping_completes_and_transitions(home_planet_fixture):
     assert miner.state == ShipState.DUMPING
     assert miner.cargo == cargo_to_dump  # Cargo not cleared yet
     assert (
-        planet.storage["Tritanium"] == initial_tritanium
+        planet.storage[ResourceType.TRITANIUM] == initial_tritanium
     )  # Planet storage not updated yet
-    assert planet.storage["Credits"] == initial_credits
+    assert planet.storage[ResourceType.CREDITS] == initial_credits
 
     # Update for remaining duration + a bit more
     miner.update(constants.DUMPING_DURATION / 2 + 0.1, obstacles)
@@ -143,6 +154,6 @@ def test_update_dumping_completes_and_transitions(home_planet_fixture):
     # Check all cargo types are zero
     assert all(amount == 0 for amount in miner.cargo.values())
     # Check planet storage increased correctly for each dumped resource
-    assert planet.storage["Tritanium"] == initial_tritanium + cargo_to_dump["Tritanium"]
-    assert planet.storage["Credits"] == initial_credits + cargo_to_dump["Credits"]
+    assert planet.storage[ResourceType.TRITANIUM] == initial_tritanium + cargo_to_dump[ResourceType.TRITANIUM]
+    assert planet.storage[ResourceType.CREDITS] == initial_credits + cargo_to_dump[ResourceType.CREDITS]
     assert miner.state == ShipState.IDLE

@@ -1,10 +1,9 @@
 import math
 from pygame.math import Vector2
-from typing import TYPE_CHECKING, Union # Add Union import
+from typing import TYPE_CHECKING, Union  # Add Union import
 
 from .. import constants
 from .. import utils
-# from ..enums import ShipState # Not used directly in this function
 
 # Conditional imports to break circular dependency
 if TYPE_CHECKING:
@@ -13,8 +12,11 @@ if TYPE_CHECKING:
     from ..entities.asteroid import Asteroid
     from ..entities.ships.base_ship import Ship
 
+
 # Type hint using string literals for Ship, Asteroid, and Planet
-def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroid', 'Planet']]):
+def update_ship_movement(
+    ship: "Ship", dt: float, obstacles: list[Union["Asteroid", "Planet"]]
+) -> tuple[Vector2, float, bool]:
     """Calculates the ship's new position and angle based on its target and obstacles.
     Returns: (new_position_vector, new_angle_radians, arrived) tuple.
     Does NOT modify the ship object directly.
@@ -26,7 +28,7 @@ def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroi
 
     # --- Determine Target Info and Calculate Arrival Threshold ---
     # Use sum of radii + buffer for arrival detection
-    if ship.target and hasattr(ship.target, 'position') and hasattr(ship.target, 'radius'):
+    if ship.target and hasattr(ship.target, "position") and hasattr(ship.target, "radius"):
         target_pos_vec = ship.target.position
         target_obstacle_to_ignore = ship.target
         # Calculate threshold based on both radii + buffer
@@ -42,7 +44,7 @@ def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroi
     distance_to_target = target_vector.length()
 
     # Check for arrival using the correct threshold
-    if distance_to_target <= arrival_threshold: # Use <= for robustness
+    if distance_to_target <= arrival_threshold:  # Use <= for robustness
         # Arrived: Return current position, current angle, and True
         return current_pos_vec, ship.angle, True
 
@@ -51,16 +53,14 @@ def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroi
     if distance_to_target > constants.EPSILON:  # Avoid division by zero
         try:
             norm_target_vector = target_vector.normalize()
-        except (
-            ValueError
-        ):  # Target vector was zero length despite distance check? Safety.
-            print(
-                f"WARN: Zero target vector in movement for ship {ship} to {ship.target}"
-            )
+        except ValueError:  # Target vector was zero length despite distance check? Safety.
+            print(f"WARN: Zero target vector in movement for ship {ship} to {ship.target}")
             norm_target_vector = Vector2(0, 0)  # Stay put if target is current pos
 
     # --- Pre-calculate potential move distance ---
     potential_move_dist = ship.speed * dt
+    if ship.fuel <= constants.EPSILON:
+        potential_move_dist *= constants.NO_FUEL_MULTIPLIER
     distance_to_arrival_point = distance_to_target - arrival_threshold
 
     # --- Check if this move step will reach or cross the arrival threshold ---
@@ -128,9 +128,7 @@ def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroi
 
     # --- Calculate Final Position and Angle ---
     # Apply movement based on the determined move_vector
-    if (
-        move_vector.length_squared() > constants.EPSILON_SQ
-    ):  # Only move if move_vector is valid
+    if move_vector.length_squared() > constants.EPSILON_SQ:  # Only move if move_vector is valid
         # Normalize the final move vector before applying speed and dt
         final_move_direction = move_vector.normalize()
         # Apply the *full* potential move distance calculated earlier
@@ -143,4 +141,21 @@ def update_ship_movement(ship: 'Ship', dt: float, obstacles: list[Union['Asteroi
         new_angle = ship.angle  # Keep the current angle
 
     # Return new position (Vector2), new angle, and arrival status (False)
-    return new_pos_vec, new_angle, False 
+    return new_pos_vec, new_angle, False
+
+
+def calc_fuel_needed_round_trip(ship: "Ship", target: "Asteroid | Planet"):
+    """Approximates the fuel needed to scan the asteroid and return to base.
+    WARNING: This is an approximation and not very accurate!"""
+    # ---- Checks ----
+    if ship.home is None:
+        print(f"ERROR: Scanner {ship.id} has no home planet set. This should never happen!")
+        return 0
+
+    # ---- Logic ----
+    # Calculate fuel needed for the round trip
+    distance = ship.position.distance_to(target.position)
+    distance += target.position.distance_to(ship.home.position)
+    # ---- Calculate fuel needed ----
+    fuel_needed = distance * ship.fuel_consumption_rate
+    return fuel_needed

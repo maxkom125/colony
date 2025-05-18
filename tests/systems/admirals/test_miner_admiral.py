@@ -12,7 +12,7 @@ from src.entities.ships.mining_ship import (
 )  # We might need the real one or mock it
 from src.entities.asteroid import Asteroid
 from src.entities.planet import Planet
-from src.enums import ShipState, ResourceType
+from src.enums import ShipState, ResourceType, ShipType
 from src import constants
 
 
@@ -52,6 +52,9 @@ class MockMiningShip(MagicMock):
         self.set_resource_to_mine = MagicMock()
         self.name = f"MockMiner_{self.id}"  # Add a name for potential debugging
         self.target = None
+        self.type = ShipType.MINER
+        self.fuel_max_capacity = constants.BASE_FUEL_MAX_CAPACITY
+        self.fuel = self.fuel_max_capacity
 
 
 class MockAsteroid(MagicMock):
@@ -60,7 +63,7 @@ class MockAsteroid(MagicMock):
     def __init__(
         self,
         asteroid_id=None,
-        position=(10, 10),
+        position=Vector2(10, 10),
         scanned=True,
         resources=None,
         **kwargs,
@@ -74,8 +77,10 @@ class MockAsteroid(MagicMock):
             MockAsteroid._next_id += 1
         self.position = position
         self.scanned = scanned
-        self.resources = defaultdict(int, resources or {"Tritanium": 100})  # Default resource
+        self.resources = defaultdict(int, resources or {ResourceType.TRITANIUM: 100})  # Default resource
         self.name = f"MockAsteroid_{self.id}"
+        if 'radius' not in kwargs:
+            self.radius = 10 # Default radius if not specified
 
 
 class MockPlanet(MagicMock):
@@ -113,7 +118,7 @@ def mock_planet():
 @pytest.fixture
 def mock_asteroid_tritanium():
     """Provides a mock asteroid with Tritanium."""
-    return MockAsteroid(resources={"Tritanium": 100})
+    return MockAsteroid(resources={ResourceType.TRITANIUM: 100})
 
 
 @pytest.fixture
@@ -187,7 +192,7 @@ def test_add_ship_duplicate_handled_by_base(miner_admiral, mock_miner, capsys):
     assert mock_miner.id in miner_admiral.assignments_ships[miner_admiral.free_ship_category]
 
     # Check that the base class error message was logged
-    assert f"INFO: Ship {mock_miner.id} already managed by this Admiral." in captured.out
+    assert f"INFO: {mock_miner.type} {mock_miner.id} already managed by this Admiral." in captured.out
 
 
 # Test remove_ship
@@ -576,7 +581,7 @@ def test_assign_idle_miner_specific_category(mock_find_nearest, miner_admiral):
         miner_admiral.adjust_ship_count_for_category("Tritanium", 1)
     miner.set_target.reset_mock()  # Reset mock after setup
 
-    target_asteroid = MockAsteroid(asteroid_id=1001, resources={"Tritanium": 50})
+    target_asteroid = MockAsteroid(asteroid_id=1001, resources={ResourceType.TRITANIUM: 50})
     asteroids = [target_asteroid]
     mock_find_nearest.return_value = target_asteroid
 
@@ -603,7 +608,7 @@ def test_assign_idle_miner_random_category(mock_random_choice, miner_admiral):
 
     asteroids = [
         target_asteroid,  # Good target
-        MockAsteroid(resources={"Tritanium": 100}),  # Other resource
+        MockAsteroid(resources={ResourceType.TRITANIUM: 100}),  # Other resource
     ]
 
     miner_admiral.assign_idle_miners(asteroids)
@@ -671,7 +676,7 @@ def test_assign_idle_miner_no_suitable_asteroid(mock_find_nearest, miner_admiral
     miner.set_state.reset_mock()
     miner.set_resource_to_mine.reset_mock()
 
-    asteroids = [MockAsteroid(resources={"Plasma": 50})]  # Asteroid has wrong resource
+    asteroids = [MockAsteroid(resources={ResourceType.PLASMA: 50})]  # Asteroid has wrong resource
     mock_find_nearest.return_value = None  # Mock finding nothing
 
     miner_admiral.assign_idle_miners(asteroids)
@@ -694,8 +699,8 @@ def test_find_target_specific_category_success(mock_find_nearest, miner_admiral)
     """Test _find_target_for_category successfully finds target for a specific resource."""
     miner_pos = (0, 0)
     miner = MockMiningShip(position=miner_pos)
-    target_asteroid = MockAsteroid(resources={"Credits": 100}, position=(10, 0))
-    other_asteroid = MockAsteroid(resources={"Credits": 100}, position=(20, 0))
+    target_asteroid = MockAsteroid(resources={ResourceType.CREDITS: 100}, position=(10, 0))
+    other_asteroid = MockAsteroid(resources={ResourceType.CREDITS: 100}, position=(20, 0))
     asteroids = [other_asteroid, target_asteroid]  # Target is closer
     mock_find_nearest.return_value = target_asteroid
 
@@ -704,7 +709,7 @@ def test_find_target_specific_category_success(mock_find_nearest, miner_admiral)
 
     mock_find_nearest.assert_called_once_with(miner_pos, asteroids, "Credits")
     assert found_target is target_asteroid
-    assert found_resource == "Credits" # Check the returned resource type
+    assert found_resource == ResourceType.CREDITS # Check the returned resource type
 
 
 @patch("src.systems.admirals.miner_admiral.random.choice")
@@ -712,13 +717,13 @@ def test_find_target_random_category_success(mock_random_choice, miner_admiral):
     """Test _find_target_for_category finds random for 'Random' category."""
     miner = MockMiningShip(position=(0, 0))
     asteroid_plasma = MockAsteroid(
-        resources={"Plasma": 50},
+        resources={ResourceType.PLASMA: 50},
         position=(10, 10),
         asteroid_id=1001,
         scanned=True,
     )
     asteroid_trit = MockAsteroid(
-        resources={"Tritanium": 50},
+        resources={ResourceType.TRITANIUM: 50},
         position=(5, 5),
         asteroid_id=1002,
         scanned=True,
@@ -726,7 +731,7 @@ def test_find_target_random_category_success(mock_random_choice, miner_admiral):
     asteroids = [asteroid_plasma, asteroid_trit]
 
     # Mock the category choice ('Plasma') and then the asteroid choice
-    mock_random_choice.side_effect = ["Plasma", asteroid_plasma]
+    mock_random_choice.side_effect = [ResourceType.PLASMA, asteroid_plasma]
 
     found_target, found_resource = miner_admiral._find_target_for_category(miner, "Random", asteroids)
 
@@ -737,7 +742,7 @@ def test_find_target_random_category_success(mock_random_choice, miner_admiral):
     assert mock_random_choice.call_args_list[1][0][0] == [asteroid_plasma]
 
     assert found_target is asteroid_plasma
-    assert found_resource == "Plasma"
+    assert found_resource == ResourceType.PLASMA
 
 
 # @patch('src.systems.admirals.miner_admiral.utils.find_nearest_with_resource') # Incorrect target
@@ -749,7 +754,7 @@ def test_find_target_specific_category_not_found(mock_find_nearest, miner_admira
     miner_pos = (0, 0)
     # Pass miner object, not position, to the function being tested
     miner = MockMiningShip(position=miner_pos)
-    asteroids = [MockAsteroid(resources={"Plasma": 50})]
+    asteroids = [MockAsteroid(resources={ResourceType.PLASMA: 50})]
     mock_find_nearest.return_value = None
 
     # Unpack the tuple return value
@@ -784,7 +789,7 @@ def test_find_target_random_category_no_matching_asteroid(miner_admiral):
     """Test _find_target_for_category for 'Random' when no asteroid has the chosen resource."""
     miner = MockMiningShip(position=(0, 0))
     # Asteroid exists, but doesn't have the randomly chosen resource, and isn't scanned
-    asteroids = [MockAsteroid(resources={"Plasma": 50}, scanned=True)]
+    asteroids = [MockAsteroid(resources={ResourceType.PLASMA: 50}, scanned=True)]
 
     # Patch random.choice to return 'Tritanium', which isn't available
     with patch(
@@ -836,7 +841,7 @@ def test_assign_idle_miner_ignores_unscanned_asteroid(
 
     # utils.find_nearest_with_resource should handle filtering unscanned/zero resource
     # So we just need to ensure it returns None if only unsuitable asteroids exist
-    unscanned_asteroid = MockAsteroid(resources={"Tritanium": 100}, scanned=False)
+    unscanned_asteroid = MockAsteroid(resources={ResourceType.TRITANIUM: 100}, scanned=False)
     asteroids = [unscanned_asteroid]
     mock_find_nearest.return_value = None  # Mocking the expected outcome
 
@@ -870,7 +875,7 @@ def test_assign_idle_miner_ignores_zero_resource_asteroid(
     miner.set_state.reset_mock()
     miner.set_resource_to_mine.reset_mock()
 
-    zero_resource_asteroid = MockAsteroid(resources={"Tritanium": 0}, scanned=True)
+    zero_resource_asteroid = MockAsteroid(resources={ResourceType.TRITANIUM: 0}, scanned=True)
     asteroids = [zero_resource_asteroid]
     mock_find_nearest.return_value = None  # Mocking the expected outcome
 
@@ -896,9 +901,9 @@ def test_assign_idle_miner_random_ignores_unsuitable(
     miner.set_state.reset_mock()
     miner.set_resource_to_mine.reset_mock()
 
-    unscanned_trit = MockAsteroid(resources={"Tritanium": 100}, scanned=False, asteroid_id=1001)
-    zero_trit = MockAsteroid(resources={"Tritanium": 0}, scanned=True, asteroid_id=1002)
-    good_plasma = MockAsteroid(resources={"Plasma": 50}, scanned=True, asteroid_id=1003)
+    unscanned_trit = MockAsteroid(resources={ResourceType.TRITANIUM: 100}, scanned=False, asteroid_id=1001)
+    zero_trit = MockAsteroid(resources={ResourceType.TRITANIUM: 0}, scanned=True, asteroid_id=1002)
+    good_plasma = MockAsteroid(resources={ResourceType.PLASMA: 50}, scanned=True, asteroid_id=1003)
     asteroids = [unscanned_trit, zero_trit, good_plasma]
 
     # Mock random choice: first selects 'Tritanium' category,
@@ -926,13 +931,13 @@ def test_assign_idle_miner_random_selects_correct_asteroid(
     miner_admiral.add_ship(miner)  # In Random category
     miner.set_target.reset_mock()
 
-    zero_trit = MockAsteroid(resources={"Tritanium": 0}, scanned=True, asteroid_id=1002)
-    good_plasma = MockAsteroid(resources={"Plasma": 50}, scanned=True, asteroid_id=1003)
+    zero_trit = MockAsteroid(resources={ResourceType.TRITANIUM: 0}, scanned=True, asteroid_id=1002)
+    good_plasma = MockAsteroid(resources={ResourceType.PLASMA: 50}, scanned=True, asteroid_id=1003)
     asteroids = [zero_trit, good_plasma]
 
     # Mock random choice: first selects 'Plasma' category,
     # then should choose the only valid Plasma asteroid.
-    mock_random_choice.side_effect = ["Plasma", good_plasma]
+    mock_random_choice.side_effect = [ResourceType.PLASMA, good_plasma]
 
     miner_admiral.assign_idle_miners(asteroids)
 
@@ -953,8 +958,8 @@ def test_assign_idle_miner_random_selects_correct_asteroid(
 
 def test_find_nearest_with_resource_finds_closest(miner_admiral):
     source_pos = Vector2(0, 0)
-    a_near = MockAsteroid(position=(10, 0), resources={"Tritanium": 50})
-    a_far = MockAsteroid(position=(100, 0), resources={"Tritanium": 100})
+    a_near = MockAsteroid(position=(10, 0), resources={ResourceType.TRITANIUM: 50})
+    a_far = MockAsteroid(position=(100, 0), resources={ResourceType.TRITANIUM: 100})
     asteroids = [a_far, a_near]
     nearest = miner_admiral._find_nearest_with_resource(source_pos, asteroids, "Tritanium")
     assert nearest is a_near
@@ -962,8 +967,8 @@ def test_find_nearest_with_resource_finds_closest(miner_admiral):
 
 def test_find_nearest_with_resource_ignores_wrong_resource(miner_admiral):
     source_pos = Vector2(0, 0)
-    a_trit = MockAsteroid(position=(10, 0), resources={"Tritanium": 50})
-    a_cred = MockAsteroid(position=(5, 0), resources={"Credits": 100})  # Closer but wrong resource
+    a_trit = MockAsteroid(position=(10, 0), resources={ResourceType.TRITANIUM: 50})
+    a_cred = MockAsteroid(position=(5, 0), resources={ResourceType.CREDITS: 100})  # Closer but wrong resource
     asteroids = [a_trit, a_cred]
     # Look for Tritanium, should ignore the closer Credits asteroid
     nearest = miner_admiral._find_nearest_with_resource(source_pos, asteroids, "Tritanium")
@@ -972,9 +977,9 @@ def test_find_nearest_with_resource_ignores_wrong_resource(miner_admiral):
 
 def test_find_nearest_with_resource_ignores_unscanned(miner_admiral):
     source_pos = Vector2(0, 0)
-    a_scanned = MockAsteroid(position=(100, 0), scanned=True, resources={"Plasma": 50})
+    a_scanned = MockAsteroid(position=(100, 0), scanned=True, resources={ResourceType.PLASMA: 50})
     a_unscanned = MockAsteroid(
-        position=(10, 0), scanned=False, resources={"Plasma": 100}
+        position=(10, 0), scanned=False, resources={ResourceType.PLASMA: 100}
     )  # Closer but unscanned
     asteroids = [a_scanned, a_unscanned]
     nearest = miner_admiral._find_nearest_with_resource(source_pos, asteroids, "Plasma")
@@ -983,8 +988,8 @@ def test_find_nearest_with_resource_ignores_unscanned(miner_admiral):
 
 def test_find_nearest_with_resource_no_match(miner_admiral):
     source_pos = Vector2(0, 0)
-    a_trit = MockAsteroid(position=(10, 0), resources={"Tritanium": 50})
-    a_cred = MockAsteroid(position=(5, 0), resources={"Credits": 100})
+    a_trit = MockAsteroid(position=(10, 0), resources={ResourceType.TRITANIUM: 50})
+    a_cred = MockAsteroid(position=(5, 0), resources={ResourceType.CREDITS: 100})
     asteroids = [a_trit, a_cred]
     # Look for Plasma, none exists
     nearest = miner_admiral._find_nearest_with_resource(source_pos, asteroids, "Plasma")

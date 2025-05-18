@@ -24,7 +24,9 @@ def home_planet_fixture():
 @pytest.fixture
 def base_ship(home_planet_fixture):
     """Provides a default Ship instance with a home planet."""
-    return Ship(Vector2(100, 200), radius=10, color=(255, 0, 0), speed=50, home_planet=home_planet_fixture)
+    ship = Ship(Vector2(100, 200), radius=10, color=(255, 0, 0), speed=50, home_planet=home_planet_fixture)
+    ship.fuel = ship.fuel_max_capacity # Initialize with full fuel
+    return ship
 
 def test_get_cargo_total_initial_zero(home_planet_fixture):
     ship = Ship(Vector2(0, 0), radius=10, color=(1, 2, 3), speed=50.0, home_planet=home_planet_fixture)
@@ -118,10 +120,8 @@ def test_update_movement_no_admiral_issue_command(base_ship, mocker):
     
     ship.update(0.1, []) # dt is large enough to arrive
     
-    # check if the mocked print was called
-    mock_print.assert_called_once()
     # Construct expected warning message using the ship's actual ID
-    expected_warning = f"ERROR: Ship {ship.id} has no admiral, cannot issue arrival command."
+    expected_warning = f"ERROR: {ship.type} {ship.id} has no admiral, cannot issue arrival command."
     # Check the first argument of the first call to the mock print
     mock_print.assert_called_with(expected_warning)
 

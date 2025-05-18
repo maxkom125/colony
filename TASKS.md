@@ -180,4 +180,12 @@
 - Priority: Medium
 - Dependencies: 25
 
+## Task ID: 31
+- Status: DONE
+- Description: Refactor `ResourceType.list()` to return enum members instead of names. Update all usages and fix resulting test failures in `test_asteroid.py` and `test_miner_admiral.py`.
+- Priority: High
+- Dependencies: 19
+
 # TODO: click on Random + button unassigns a ship from category with the most ships
+# TODO: fix alignment in research tab
+# TODO: ADD mining ship return to base to refill logic like in scanner

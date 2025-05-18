@@ -7,7 +7,7 @@ from ... import constants  # Relative import
 from ..asteroid import Asteroid  # Need these for type hints/checks
 from ..planet import Planet
 from ...enums import ShipState, ShipType, ResourceType  # Import the enum
-
+from ...utils import convert_resource_type_to_enum
 
 # Conditional import for type hinting to prevent circular dependency
 if TYPE_CHECKING:
@@ -17,7 +17,9 @@ if TYPE_CHECKING:
 class MiningShip(Ship):
     """Represents a ship specialized in mining asteroids."""
 
-    def __init__(self, position: Vector2, home_planet: Planet, ship_id: int | None = None, *args, **kwargs):
+    def __init__(
+        self, position: Vector2, home_planet: Planet, ship_id: int | None = None, *args, **kwargs
+    ):
         # Use constants for mining ship specific values
         super().__init__(
             position,
@@ -26,7 +28,8 @@ class MiningShip(Ship):
             constants.MINER_SPEED,
             home_planet,
             ship_id,
-            *args, **kwargs
+            *args,
+            **kwargs,
         )
         self.type = ShipType.MINER
         self.cargo_capacity = constants.MINING_SHIP_CARGO_CAPACITY
@@ -34,12 +37,18 @@ class MiningShip(Ship):
         self.admiral: "MinerAdmiral" | None = None
         self.resource_to_mine = None
 
-    def set_resource_to_mine(self, resource: ResourceType | None):
+    def set_resource_to_mine(self, resource: ResourceType | str | None):
         """Sets the resource to mine. Should be called by the admiral only!"""
-        # ---- Checks ----
         if resource is None:
             self.resource_to_mine = None
             return
+        try:
+            resource = convert_resource_type_to_enum(resource)
+        except ValueError:
+            print(f"WARN: Invalid resource type: {resource}")
+            return
+        
+        # ---- Checks ----
         if resource not in ResourceType:
             print(f"WARN: Invalid resource type: {resource}")
             return
@@ -47,13 +56,14 @@ class MiningShip(Ship):
             print(f"ERROR: MiningShip {self.id} has no admiral")
             return
 
-        if self.admiral.ships_assignments[self.id] != self.admiral.free_ship_category:
-            if resource != self.admiral.ships_assignments[self.id]:
-                print(f"WARN: Ship {self.id} is not assigned to mine {resource}")
+        assigned_category_str = self.admiral.ships_assignments[self.id]
+        if assigned_category_str != self.admiral.free_ship_category:
+            if resource.value != assigned_category_str:
+                print(f"WARN: Ship {self.id} is assigned to {assigned_category_str} but attempted to set mine to {resource.value}")
                 return
-            if self.id not in self.admiral.assignments_ships[resource]:
+            if self.id not in self.admiral.assignments_ships[assigned_category_str]:
                 print(
-                    f"WARN: Ship {self.id} is not in the list of ships assigned to mine {resource}"
+                    f"WARN: Ship {self.id} is not in the list of ships assigned to mine {assigned_category_str}"
                 )
                 return
         # ---- Set ----
@@ -67,18 +77,18 @@ class MiningShip(Ship):
             # ---- Checks ----
             if self.admiral is None:
                 print(
-                    f"ERROR: {self.type} {self.id} in MINING state but has no admiral. Going IDLE."
+                    f"ERROR: {self.type} {self.id} in MINING state but has no admiral. Doing nothing."
                 )
                 return
             if self.resource_to_mine not in ResourceType.list():
                 print(
-                    f"WARN: {self.type} {self.id} in MINING state but has no assigned category. Going IDLE."
+                    f"WARN: {self.type} {self.id} in MINING state but resource to mine ({self.resource_to_mine}) is not in ResourceType.list()"
                 )
                 self.admiral.issue_command(self)
                 return
             if self.target is None or not isinstance(self.target, Asteroid):
                 print(
-                    f"WARN: {self.type} {self.id} in MINING state but target is not an Asteroid. Going IDLE."
+                    f"WARN: {self.type} {self.id} in MINING state but target ({self.target}) is not an Asteroid."
                 )
                 self.admiral.issue_command(self)
                 return
@@ -121,9 +131,7 @@ class MiningShip(Ship):
 
                 # End of cycle, admiral will issue 'moving to asteroid' command to idle ships
                 # Going IDLE
-                self.set_state(ShipState.IDLE)
-                self.set_target(None)
-                self.dumping_timer = 0.0
+                self.admiral.issue_command(self)
 
     def draw(self, surface, world_to_screen_func, zoom_level):
         """Draws the mining ship (diamond) using the base class helper for rotation."""
