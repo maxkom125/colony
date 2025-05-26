@@ -8,6 +8,7 @@ from ..asteroid import Asteroid  # Need these for type hints/checks
 from ..planet import Planet
 from ...enums import ShipState, ShipType, ResourceType  # Import the enum
 from ...utils import convert_resource_type_to_enum
+from ...logger import logger # Import the logger
 
 # Conditional import for type hinting to prevent circular dependency
 if TYPE_CHECKING:
@@ -44,26 +45,26 @@ class MiningShip(Ship):
             return
         try:
             resource = convert_resource_type_to_enum(resource)
-        except ValueError:
-            print(f"WARN: Invalid resource type: {resource}")
+        except ValueError as e:
+            logger.warning(f"Invalid resource type: {resource}. Error: {e}")
             return
         
         # ---- Checks ----
-        if resource not in ResourceType:
-            print(f"WARN: Invalid resource type: {resource}")
+        if resource not in ResourceType: # Should be caught by convert_resource_type_to_enum already
+            logger.warning(f"Invalid resource type (post-conversion): {resource}")
             return
         if self.admiral is None:
-            print(f"ERROR: MiningShip {self.id} has no admiral")
+            logger.error(f"MiningShip {self.id} has no admiral")
             return
 
         assigned_category_str = self.admiral.ships_assignments[self.id]
         if assigned_category_str != self.admiral.free_ship_category:
             if resource.value != assigned_category_str:
-                print(f"WARN: Ship {self.id} is assigned to {assigned_category_str} but attempted to set mine to {resource.value}")
+                logger.warning(f"Ship {self.id} is assigned to {assigned_category_str} but attempted to set mine to {resource.value}")
                 return
             if self.id not in self.admiral.assignments_ships[assigned_category_str]:
-                print(
-                    f"WARN: Ship {self.id} is not in the list of ships assigned to mine {assigned_category_str}"
+                logger.warning(
+                    f"Ship {self.id} is not in the list of ships assigned to mine {assigned_category_str}"
                 )
                 return
         # ---- Set ----
@@ -76,19 +77,19 @@ class MiningShip(Ship):
         if self.state == ShipState.MINING:
             # ---- Checks ----
             if self.admiral is None:
-                print(
-                    f"ERROR: {self.type} {self.id} in MINING state but has no admiral. Doing nothing."
+                logger.error(
+                    f"{self.type} {self.id} in MINING state but has no admiral. Doing nothing."
                 )
                 return
             if self.resource_to_mine not in ResourceType.list():
-                print(
-                    f"WARN: {self.type} {self.id} in MINING state but resource to mine ({self.resource_to_mine}) is not in ResourceType.list()"
+                logger.warning(
+                    f"{self.type} {self.id} in MINING state but resource to mine ({self.resource_to_mine}) is not in ResourceType.list()"
                 )
                 self.admiral.issue_command(self)
                 return
             if self.target is None or not isinstance(self.target, Asteroid):
-                print(
-                    f"WARN: {self.type} {self.id} in MINING state but target ({self.target}) is not an Asteroid."
+                logger.warning(
+                    f"{self.type} {self.id} in MINING state but target ({self.target}) is not an Asteroid."
                 )
                 self.admiral.issue_command(self)
                 return
@@ -110,13 +111,15 @@ class MiningShip(Ship):
                     self.target.resources[self.resource_to_mine] -= actual_mined
                     self.mining_timer = can_take / max(self.mining_rate, constants.EPSILON)
                 else:
-                    print(
-                        f"ERROR: {self.type} {self.id} mined 0 {self.resource_to_mine}. This should never happen!"
-                    )
+                    # This case might happen if free_space or max_available is ~0
+                    if free_space > constants.EPSILON and max_available > constants.EPSILON:
+                        logger.error(
+                            f"{self.type} {self.id} mined 0 {self.resource_to_mine}. Free space: {free_space}, Max available: {max_available}. This might indicate an issue."
+                        )
                     self.admiral.issue_command(self)
             else:
-                print(
-                    f"DEBUG: {self.type} {self.id} finished mining (Full or Depleted). "
+                logger.debug(
+                    f"{self.type} {self.id} finished mining (Full or Depleted). "
                     f"Returning home."
                 )
                 self.admiral.issue_command(self)  # Will set state to RETURNING_TO_BASE
@@ -124,8 +127,8 @@ class MiningShip(Ship):
         elif self.state == ShipState.DUMPING:
             self.dumping_timer += dt
             if self.dumping_timer >= constants.DUMPING_DURATION:
-                print(f"DEBUG: Ship {self.id} finished dumping {self.cargo} at home planet.")
-                self.home.add_resources(self.cargo)
+                logger.debug(f"Ship {self.id} finished dumping {self.cargo} at home planet.")
+                self.home.add_resources(self.cargo) # Planet already logs this
                 for res_type in self.cargo:
                     self.cargo[res_type] = 0
 

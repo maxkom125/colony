@@ -8,6 +8,7 @@ from ..planet import Planet
 from ...enums import ShipState, ShipType  # Import the enum
 from ..entity import Entity  # For target type hint
 from typing import TYPE_CHECKING
+from ...logger import logger # Import the logger
 
 # Add type hint for the specific admiral
 if TYPE_CHECKING:
@@ -44,7 +45,7 @@ class ScannerShip(Ship):
         if self.state == ShipState.SCANNING:
             # ---- Checks ----
             if not self.target:
-                print(f"WARN: Scanner {self.id} lost target while SCANNING. Going IDLE.")
+                logger.warning(f"Scanner {self.id} lost target while SCANNING. Going IDLE.")
                 self.set_state(ShipState.IDLE)
                 return
 
@@ -52,8 +53,8 @@ class ScannerShip(Ship):
             if not isinstance(self.target, Asteroid) or not hasattr(
                 self.target, "scan_points_remaining"
             ):
-                print(
-                    f"WARN: Scanner {self.id} scanning invalid target {type(self.target).__name__} {self.target.id}. Going IDLE."
+                logger.warning(
+                    f"Scanner {self.id} scanning invalid target {type(self.target).__name__} {self.target.id if self.target else 'None'}. Going IDLE."
                 )
                 self.set_state(ShipState.IDLE)
                 self.set_target(None)
@@ -74,9 +75,9 @@ class ScannerShip(Ship):
                 self.target.scan_points_remaining = 0  # Ensure clamped
                 self.target.scanned = True
                 self.scan_timer = 0.0  # Ensure timer shows 0
-                print(
-                    f"DEBUG: Ship {self.id} finished scanning Asteroid {self.target.id}. "
-                    f"Resources: {self.target.resources}"
+                logger.debug(
+                    f"Ship {self.id} finished scanning Asteroid {self.target.id if self.target else 'None'}. "
+                    f"Resources: {self.target.resources if hasattr(self.target, 'resources') else 'N/A'}"
                 )
                 self.admiral.issue_command(self)
 

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Union  # Add Union import
 
 from .. import constants
 from .. import utils
+from ..logger import logger # Import the logger
 
 # Conditional imports to break circular dependency
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ def update_ship_movement(
         arrival_threshold = ship.get_arrival_threshold()
     else:
         # No target, return current position and angle
-        print(f"WARN: Ship {ship.id} has no target, returning current position and angle.")
+        logger.warning(f"Ship {ship.id} (type: {ship.type}) has no target or target invalid, cannot update movement.")
         return ship.position, ship.angle, False
 
     # --- Core Movement Logic ---
@@ -54,7 +55,7 @@ def update_ship_movement(
         try:
             norm_target_vector = target_vector.normalize()
         except ValueError:  # Target vector was zero length despite distance check? Safety.
-            print(f"WARN: Zero target vector in movement for ship {ship} to {ship.target}")
+            logger.warning(f"Zero target vector in movement for ship {ship.id} (type: {ship.type}) to {ship.target.id if ship.target else 'None'}")
             norm_target_vector = Vector2(0, 0)  # Stay put if target is current pos
 
     # --- Pre-calculate potential move distance ---
@@ -149,7 +150,7 @@ def calc_fuel_needed_round_trip(ship: "Ship", target: "Asteroid | Planet"):
     WARNING: This is an approximation and not very accurate!"""
     # ---- Checks ----
     if ship.home is None:
-        print(f"ERROR: Scanner {ship.id} has no home planet set. This should never happen!")
+        logger.error(f"Ship {ship.id} (type: {ship.type}) has no home planet set in calc_fuel_needed_round_trip. This should never happen!")
         return 0
 
     # ---- Logic ----

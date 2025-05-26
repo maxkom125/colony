@@ -1,6 +1,7 @@
 from .. import constants
 from ..enums import ResourceType
 from typing import Dict
+from ..logger import logger # Import the logger
 
 
 class SpaceMarket:
@@ -38,8 +39,8 @@ class SpaceMarket:
         available_amount = storage.get(decrease_key, 0)
 
         if available_amount < amount_decrease:
-            print(
-                f"WARN: Not enough {decrease_key}. Need {amount_decrease:.2f}, have {available_amount:.2f}"
+            logger.warning(
+                f"Not enough {decrease_key} to perform transaction. Need {amount_decrease:.2f}, have {available_amount:.2f}"
             )
             return False
 
@@ -53,10 +54,10 @@ class SpaceMarket:
         amount_of_resource: float,
     ) -> bool:
         if resource == ResourceType.CREDITS:
-            print("WARN: Cannot buy/sell Credits.")
+            logger.warning("Attempted to buy/sell Credits, which is not allowed.")
             return False
         if amount_of_resource <= 0:
-            print("WARN: Conversion amount must be positive.")
+            logger.warning(f"Conversion amount must be positive, got {amount_of_resource}.")
             return False
         return True
 

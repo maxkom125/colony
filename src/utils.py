@@ -1,6 +1,7 @@
 import math
 from pygame.math import Vector2  # Import Vector2
 from src.enums import ResourceType
+from src.logger import logger # Import the logger
 from typing import TYPE_CHECKING
 
 # Conditional imports for type hints to prevent circular dependency
@@ -25,8 +26,8 @@ def find_nearest_object(source_pos_vec: Vector2, target_objects: list['Entity'],
         try:
             dist_sq = source_pos_vec.distance_squared_to(obj.position)
         except AttributeError:
-            print(
-                f"ERROR: Target object {obj} (type: {type(obj)}) missing .position attribute in find_nearest_object"
+            logger.error(
+                f"Target object {obj} (type: {type(obj)}) missing .position attribute in find_nearest_object"
             )
             continue  # Skip object if it doesn't have a position
 
@@ -119,8 +120,8 @@ def check_path_for_obstacles(
             obs_pos_vec = obs.position
             obs_radius = obs.radius
         except AttributeError:
-            print(
-                f"ERROR: Obstacle {obs} (type: {type(obs)}) missing position/radius in check_path_for_obstacles."
+            logger.error(
+                f"Obstacle {obs} (type: {type(obs)}) missing position/radius in check_path_for_obstacles."
             )
             continue
 

@@ -4,6 +4,7 @@ from pygame.math import Vector2
 from .entity import Entity # Import the new base class
 from .. import constants  # Relative import
 from ..enums import ResourceType
+from ..logger import logger # Import the logger
 
 
 class Planet(Entity):
@@ -38,13 +39,13 @@ class Planet(Entity):
         """
         # Double-check affordability before removing
         if not self.has_resources(resource_dict):
-            print(f"ERROR: remove_resources called for {resource_dict} but insufficient funds.")
+            logger.error(f"remove_resources called for {resource_dict} but insufficient funds.")
             return False
 
         # If affordable, deduct
         for resource_type, amount_to_remove in resource_dict.items():
             self.storage[resource_type] -= amount_to_remove
-            print(f"INFO: Removed {amount_to_remove} {resource_type}. New total: {self.storage[resource_type]}")
+            logger.info(f"Removed {amount_to_remove} {resource_type}. New total: {self.storage[resource_type]}")
         return True
 
     def add_resources(self, resources_to_add: dict):
@@ -52,12 +53,12 @@ class Planet(Entity):
         for resource_type, amount in resources_to_add.items():
             if resource_type in self.storage:
                 if amount < 0:
-                    print(f"Warning: Attempted to add negative amount ({amount}) of {resource_type}. Ignoring.")
+                    logger.warning(f"Attempted to add negative amount ({amount}) of {resource_type}. Ignoring.")
                     continue
                 self.storage[resource_type] += amount
-                print(f"INFO: Added {amount} {resource_type} to planet. New total: {self.storage[resource_type]}")
+                logger.info(f"Added {amount} {resource_type} to planet. New total: {self.storage[resource_type]}")
             else:
-                print(f"Warning: Attempted to add unknown resource type '{resource_type}'.")
+                logger.warning(f"Attempted to add unknown resource type '{resource_type}'.")
 
     def draw(self, surface, world_to_screen_func, zoom_level):
         # Simple circle drawing

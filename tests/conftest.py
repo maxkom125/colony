@@ -1,7 +1,9 @@
 import sys
 import os
 import inspect
+import logging # Required for the custom caplog
 import pytest
+from loguru import logger # Required for the custom caplog
 
 # Add project root to sys.path so that 'src' modules can be imported
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -43,3 +45,23 @@ def check_no_set_target_override():
         # If subclass defines its own set_target (not inherited)
         if getattr(subclass, 'set_target', None) is not Ship.set_target:
             pytest.fail(f"Class {subclass.__module__}.{subclass.__name__} overrides set_target, tests require using the base implementation.") 
+
+# Custom caplog fixture for Loguru
+# This allows Loguru logs to be captured by pytest's caplog fixture.
+@pytest.fixture
+def caplog(caplog):
+    class PropagateHandler(logging.Handler):
+        def emit(self, record):
+            logging.getLogger(record.name).handle(record)
+
+    # Ensure the Loguru logger instance is the one from our application
+    # This might require importing it from src.logger if it's not globally available
+    # For now, assuming 'logger' is the global Loguru instance or imported correctly.
+    # If src.logger.logger is the instance, use that.
+    # from src.logger import logger as loguru_logger_instance
+    loguru_logger_instance = logger # Assuming global logger or already imported
+
+    handler_id = loguru_logger_instance.add(PropagateHandler(), format="{message}", level="DEBUG")
+    caplog.set_level(logging.DEBUG) # Ensure pytest's caplog captures DEBUG level
+    yield caplog
+    loguru_logger_instance.remove(handler_id)

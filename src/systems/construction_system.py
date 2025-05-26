@@ -7,6 +7,7 @@ from ..entities.planet import Planet
 from ..entities.ships.scanner_ship import ScannerShip
 from ..entities.ships.mining_ship import MiningShip
 from ..enums import ResourceType
+from ..logger import logger # Import the logger
 
 def attempt_construction(planet: Planet, ship_type: str):
     """Checks planet resources, deducts them, and creates a ship if possible.
@@ -34,7 +35,7 @@ def attempt_construction(planet: Planet, ship_type: str):
         }
         ShipClass = MiningShip
     else:
-        print(f"ERROR: Unknown ship type '{ship_type}' requested for construction.")
+        logger.error(f"Unknown ship type '{ship_type}' requested for construction.")
         return None
 
     if planet.has_resources(costs) and ShipClass:
@@ -46,12 +47,12 @@ def attempt_construction(planet: Planet, ship_type: str):
             spawn_pos = planet.position + Vector2(spawn_dist, 0).rotate_rad(spawn_angle)
             new_ship = ShipClass(position=spawn_pos, home_planet=planet) # TODO: set angle fase away from planet
 
-            print(f"SUCCESS: Built {ship_type} ship! Planet resources remaining: {planet.storage}")
+            logger.info(f"SUCCESS: Built {ship_type} ship ID {new_ship.id}! Planet resources remaining: {planet.storage}")
             return new_ship
         else:
             # This case should ideally not happen if has_resources is correct, but good for safety
-            print(f"ERROR: Failed to remove resources for {ship_type} even after check passed.")
+            logger.error(f"Failed to remove resources for {ship_type} even after check passed. Planet: {planet.id}, Costs: {costs}")
             return None
     else:
-        print(f"FAILED: Not enough resources to build {ship_type}. Needed T={costs.get(ResourceType.TRITANIUM, 0)}, C={costs.get(ResourceType.CREDITS, 0)}. Have T={planet.storage.get(ResourceType.TRITANIUM, 0)}, C={planet.storage.get(ResourceType.CREDITS, 0)}")
+        logger.warning(f"FAILED: Not enough resources to build {ship_type}. Needed T={costs.get(ResourceType.TRITANIUM, 0)}, C={costs.get(ResourceType.CREDITS, 0)}. Have T={planet.storage.get(ResourceType.TRITANIUM, 0)}, C={planet.storage.get(ResourceType.CREDITS, 0)}")
         return None 

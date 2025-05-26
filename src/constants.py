@@ -144,6 +144,7 @@ BUY_PLASMA_RATE = 1.0
 
 # Enums (Import necessary enums)
 from .enums import ShipState
+from .logger import logger # Import the logger
 
 # --- Behavioral Constants ---
 ARRIVAL_DISTANCE_BUFFER = 5  # How close ships need to be to radius sum to trigger arrival
@@ -168,7 +169,7 @@ def calculate_dependent_constants():
     BOTTOM_PANEL_HEIGHT = int(SCREEN_WIDTH * 0.05)
     GAME_SPEED_AREA_TOP_RIGHT = (SCREEN_WIDTH - 10, 10)  # X depends on SCREEN_WIDTH
 
-    print(f"DEBUG: Recalculated constants based on SCREEN_WIDTH={SCREEN_WIDTH}")
+    logger.debug(f"Recalculated constants based on SCREEN_WIDTH={SCREEN_WIDTH}")
     # ---- End of Screen-Dependent Constants recalculation  ----
 
 
