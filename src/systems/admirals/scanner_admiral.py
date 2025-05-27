@@ -8,7 +8,7 @@ from ...utils import find_nearest_object
 from .base_admiral import Admiral, DuplicateShipError, ShipNotFoundError
 from typing import TYPE_CHECKING
 from ...systems.movement_system import calc_fuel_needed_round_trip
-from ...logger import logger # Import the logger
+from ...logger import logger  # Import the logger
 
 if TYPE_CHECKING:
     from ...entities.entity import Entity
@@ -137,11 +137,12 @@ class ScannerAdmiral(Admiral):
         asteroids_to_scan = self._get_valid_scan_targets(asteroids)
 
         if not asteroids_to_scan:
-            logger.debug("No asteroids available or valid to scan for any scanner.")
+            logger.debug("No asteroids possible to scan!")
             return
 
         # Improved assignment: nearest unscanned AND untargeted asteroid
         for scanner in idle_scanners:
+            # Find the nearest valid asteroid for this scanner
             target_asteroid = self._find_nearest_valid_asteroid(
                 scanner.position,
                 scanner.scan_range - scanner.radius,
@@ -151,21 +152,26 @@ class ScannerAdmiral(Admiral):
             if target_asteroid:
                 # check if we have enough fuel to scan the asteroid and return to base
                 fuel_needed = calc_fuel_needed_round_trip(scanner, target_asteroid)
-                if scanner.fuel < fuel_needed: # Strict inequality
-                    logger.debug(f"Scanner {scanner.id} (fuel: {scanner.fuel:.1f}) insufficient for Asteroid {target_asteroid.id} (needs: {fuel_needed:.1f}). Returning to base.")
+                if scanner.fuel < fuel_needed:  # Strict inequality
+                    logger.debug(
+                        f"Scanner {scanner.id} (fuel: {scanner.fuel:.1f}) insufficient for Asteroid {target_asteroid.id} (needs: {fuel_needed:.1f}). Returning to base."
+                    )
                     scanner.set_state(ShipState.RETURNING_TO_BASE)
                     scanner.set_target(scanner.home)
-                    continue # Try next scanner
-                
+                    continue  # Try next scanner
+
+                # Use set_target if available, otherwise direct assignment
                 scanner.set_target(target_asteroid)
                 scanner.set_state(ShipState.MOVING_TO_SCAN)
-                # Remove from local list for this assignment cycle
+                # Add the newly assigned target to the set immediately
+                # to prevent other idle scanners in *this* cycle from picking it.
                 asteroids_to_scan.remove(target_asteroid)
                 logger.debug(f"Scanner {scanner.id} assigned to scan Asteroid {target_asteroid.id}")
             else:
+                # No available unscanned & untargeted & small enough asteroids left
                 logger.debug(f"No suitable untargeted scan target found for Scanner {scanner.id}.")
                 # Scanner remains IDLE
-    
+
     def _find_nearest_valid_asteroid(
         self,
         position: Vector2,
