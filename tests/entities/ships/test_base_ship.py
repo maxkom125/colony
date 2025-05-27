@@ -115,15 +115,15 @@ def test_update_movement_no_admiral_issue_command(base_ship, mocker):
     ship.target = Planet(target_pos) 
     ship.state = ShipState.RETURNING_TO_BASE
     
-    # Mock the built-in print function
-    mock_print = mocker.patch('builtins.print')
+    # Mock the logger.error function
+    mock_logger = mocker.patch('src.entities.ships.base_ship.logger')
     
     ship.update(0.1, []) # dt is large enough to arrive
     
     # Construct expected warning message using the ship's actual ID
-    expected_warning = f"ERROR: {ship.type} {ship.id} has no admiral, cannot issue arrival command."
-    # Check the first argument of the first call to the mock print
-    mock_print.assert_called_with(expected_warning)
+    expected_warning = f"{ship.type} {ship.id} has no admiral, cannot issue arrival command."
+    # Check the first argument of the first call to the mock logger.error
+    mock_logger.error.assert_called_with(expected_warning)
 
 def test_update_movement_clamps_overshoot(base_ship, mocker):
     """Test ship movement is clamped to arrival boundary."""

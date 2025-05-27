@@ -1,9 +1,23 @@
 import pygame
 import sys
+import argparse
+import os
+
+
+# Parse command line arguments first, before any other imports
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Colony Space Game")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    return parser.parse_args()
+
+
+# Parse arguments and set environment variable if needed
+args = parse_arguments()
+if args.debug:
+    os.environ["GAME_DEBUG"] = "1"
 
 # Adjust imports for new structure
 from src import constants
-from src.enums import ResourceType
 import random  # Import random module
 import math  # Import math for trigonometric functions
 from pygame.math import Vector2  # Import Vector2
@@ -35,8 +49,6 @@ from src.logger import logger, setup_logging
 def main():
     # Initialize logging as the first step
     setup_logging()
-    logger.info("Logging initialized from main.py")
-    logger.debug("This is a debug message from main.py - should only appear if GAME_DEBUG is set.")
 
     # global camera_offset, zoom_level  # REMOVED Globals
 
@@ -112,7 +124,9 @@ def main():
                 )
             )
     if len(asteroids) < constants.ASTEROID_COUNT:
-        logger.warning(f"Generated {len(asteroids)} asteroids, expected {constants.ASTEROID_COUNT}.")
+        logger.warning(
+            f"Generated {len(asteroids)} asteroids, expected {constants.ASTEROID_COUNT}."
+        )
 
     # Create background stars (Generate positions in world coordinates)
     stars = []
@@ -306,16 +320,26 @@ def main():
                                     hud_manager.research_modal_ship_type = None
                                     clicked_on_ui = True
                                 # Research buttons (modal only)
-                                button_rects = getattr(hud_manager, "research_modal_button_rects", {})
+                                button_rects = getattr(
+                                    hud_manager, "research_modal_button_rects", {}
+                                )
                                 ship_type = hud_manager.research_modal_ship_type
                                 for (stype, key), btn_rect in button_rects.items():
-                                    if stype == ship_type and btn_rect and btn_rect.collidepoint(event.pos):
+                                    if (
+                                        stype == ship_type
+                                        and btn_rect
+                                        and btn_rect.collidepoint(event.pos)
+                                    ):
                                         if research_system.attempt_research_purchase(
                                             key, ship_type, central_planet.storage, fleet
                                         ):
-                                            logger.info(f"Research: {ship_type.value} {key} upgraded!")
+                                            logger.info(
+                                                f"Research: {ship_type.value} {key} upgraded!"
+                                            )
                                         else:
-                                            logger.warning(f"Research: {ship_type.value} {key} upgrade FAILED.")
+                                            logger.warning(
+                                                f"Research: {ship_type.value} {key} upgrade FAILED."
+                                            )
                                         clicked_on_ui = True
                                         break
                                 if clicked_on_ui:
