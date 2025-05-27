@@ -58,6 +58,7 @@ class Ship(Entity):
         else:
             self.fuel = kwargs["fuel"]
         self.fuel_consumption_rate = constants.BASE_FUEL_CONSUMPTION_RATE
+        self.fuel_refill_rate = constants.BASE_FUEL_REFILL_RATE
         self.cargo = {res_type: 0 for res_type in ResourceType.list()}  # Use enum list here
 
     def set_target(self, target_entity: Entity | None):
@@ -153,7 +154,7 @@ class Ship(Entity):
         )
         can_take = min(fuel_needed, max_available)
 
-        potential_refill_amount = constants.BASE_FUEL_REFILL_RATE * dt
+        potential_refill_amount = self.fuel_refill_rate * dt
         actual_refilled = min(potential_refill_amount, can_take)
         # --- Check if this refill will reach max fuel capacity
         if actual_refilled > 0:

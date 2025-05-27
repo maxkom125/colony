@@ -275,6 +275,84 @@ class HUDManager:
     def get_research_scroll_down_rect(self):
         return getattr(self, "research_scroll_down_rect", None)
 
+    def get_research_scrollbar_track_rect(self):
+        """Get the research modal scrollbar track rect for interaction."""
+        return getattr(self, "research_scrollbar_track_rect", None)
+
+    def get_research_scrollbar_handle_rect(self):
+        """Get the research modal scrollbar handle rect for interaction."""
+        return getattr(self, "research_scrollbar_handle_rect", None)
+
+    def handle_research_scroll(self, scroll_delta):
+        """Handle mouse wheel scrolling in the research modal."""
+        if not hasattr(self, "research_scroll_offset"):
+            self.research_scroll_offset = 0
+
+        # Calculate scroll amount (negative delta means scroll up)
+        scroll_amount = -scroll_delta * 30  # 30 pixels per scroll step
+
+        # Apply scroll with bounds checking (will be clamped in _draw_research_modal)
+        self.research_scroll_offset += scroll_amount
+
+    def start_research_scrollbar_drag(self, mouse_pos):
+        """Start dragging the research modal scrollbar."""
+        if (
+            not hasattr(self, "research_scrollbar_handle_rect")
+            or not self.research_scrollbar_handle_rect
+        ):
+            return False
+
+        if self.research_scrollbar_handle_rect.collidepoint(mouse_pos):
+            self.research_scrollbar_dragging = True
+            self.research_scrollbar_drag_offset = (
+                mouse_pos[1] - self.research_scrollbar_handle_rect.y
+            )
+            return True
+        return False
+
+    def stop_research_scrollbar_drag(self):
+        """Stop dragging the research modal scrollbar."""
+        self.research_scrollbar_dragging = False
+
+    def update_research_scrollbar_drag(self, mouse_pos):
+        """Update research modal scrollbar position during drag."""
+        if not getattr(self, "research_scrollbar_dragging", False):
+            return
+
+        if (
+            not hasattr(self, "research_scrollbar_track_rect")
+            or not self.research_scrollbar_track_rect
+        ):
+            return
+
+        # Calculate new handle position
+        new_handle_y = mouse_pos[1] - self.research_scrollbar_drag_offset
+        track_top = self.research_scrollbar_track_rect.y
+        track_bottom = self.research_scrollbar_track_rect.bottom
+        handle_height = self.research_scrollbar_handle_rect.height
+
+        # Clamp handle position within track
+        new_handle_y = max(track_top, min(new_handle_y, track_bottom - handle_height))
+
+        # Calculate scroll offset based on handle position
+        track_height = self.research_scrollbar_track_rect.height
+        handle_travel = track_height - handle_height
+        if handle_travel > 0:
+            scroll_ratio = (new_handle_y - track_top) / handle_travel
+
+            # Calculate max scroll based on content (this will be recalculated in draw method)
+            # For now, use a reasonable estimate
+            if hasattr(self, "research_modal_ship_type"):
+                from ..systems.research_system import ResearchSystem
+
+                # This is a rough estimate - the exact value is calculated in _draw_research_modal
+                estimated_max_scroll = max(
+                    0,
+                    len(ResearchSystem().research_defs.get(self.research_modal_ship_type, {})) * 100
+                    - 400,
+                )
+                self.research_scroll_offset = scroll_ratio * estimated_max_scroll
+
     # --- Internal Helper & Drawing Methods ---
 
     def _calculate_panel_positions(self, is_collapsed: bool) -> dict:
@@ -799,27 +877,36 @@ class HUDManager:
     def _draw_research_modal(self, screen: pygame.Surface, planet, research_system):
         """Draws a modal overlay with the research tree for the selected ship type, centered in the middle of the screen as a separate window."""
         ship_type = self.research_modal_ship_type
+
+        # Initialize scroll offset if not exists
+        if not hasattr(self, "research_scroll_offset"):
+            self.research_scroll_offset = 0
+
         # Draw semi-transparent overlay over the whole screen
         overlay = pygame.Surface((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))  # RGBA, alpha=160 for dimming
         screen.blit(overlay, (0, 0))
+
         # Modal window size and position (larger)
         modal_width = int(constants.SCREEN_WIDTH * 0.56)
         modal_height = int(constants.SCREEN_HEIGHT * 0.66)
         modal_x = (constants.SCREEN_WIDTH - modal_width) // 2
         modal_y = (constants.SCREEN_HEIGHT - modal_height) // 2
         modal_rect = pygame.Rect(modal_x, modal_y, modal_width, modal_height)
+
         # Modal background
         pygame.draw.rect(screen, constants.BOTTOM_PANEL_COLOR, modal_rect, border_radius=18)
         pygame.draw.rect(
             screen, constants.BOTTOM_PANEL_BORDER_COLOR, modal_rect, 4, border_radius=18
         )
+
         # Title
         font = pygame.font.SysFont(None, max(28, int(modal_height * 0.09)), bold=True)
         title = f"{ship_type} Research"
         title_surf = font.render(title, True, constants.UI_TEXT_COLOR)
         title_rect = title_surf.get_rect(center=(modal_rect.centerx, modal_rect.top + 44))
         screen.blit(title_surf, title_rect)
+
         # Close button
         close_size = int(modal_height * 0.09)
         close_rect = pygame.Rect(
@@ -840,27 +927,119 @@ class HUDManager:
         x_rect = x_surf.get_rect(center=close_rect.center)
         screen.blit(x_surf, x_rect)
         self.research_modal_close_rect = close_rect
-        # Research items
+
+        # Research items with scrolling
         research_defs = research_system.research_defs[ship_type]
         research_levels = research_system.research_levels[ship_type]
-        item_font = pygame.font.SysFont(None, max(18, int(modal_height * 0.07)), bold=True)
-        body_font = pygame.font.SysFont(None, max(15, int(modal_height * 0.055)))
-        effect_font = pygame.font.SysFont(None, max(15, int(modal_height * 0.055)), bold=True)
-        item_width = modal_width * 0.44
-        item_height = modal_height * 0.29  # Larger cards
-        item_padding = modal_width * 0.08
-        start_x = modal_x + (modal_width - (2 * item_width + item_padding)) / 2
-        start_y = title_rect.bottom + 36  # More space below title
+
+        # Calculate content area (excluding title and padding)
+        content_start_y = title_rect.bottom + 36
+        content_height = modal_rect.bottom - content_start_y - 20  # 20px bottom padding
+
+        # Item dimensions
+        item_font = pygame.font.SysFont(
+            None, max(16, int(modal_height * 0.06)), bold=True
+        )  # Reduced from 0.07
+        body_font = pygame.font.SysFont(
+            None, max(14, int(modal_height * 0.05))
+        )  # Reduced from 0.055
+        effect_font = pygame.font.SysFont(
+            None, max(14, int(modal_height * 0.05)), bold=True
+        )  # Reduced from 0.055
+
+        item_width = modal_width * 0.42  # Slightly smaller to make more room on right
+        item_height = modal_height * 0.29  # Keep original larger cards
+        item_padding = modal_width * 0.03  # Reduced padding between columns (was 0.04)
+        row_spacing = 15  # Reduced from 20
+
+        # Calculate total content height needed
+        num_items = len(research_defs)
+        rows_needed = (num_items + 1) // 2  # 2 columns
+        total_content_height = rows_needed * (item_height + row_spacing) - row_spacing
+
+        # Scrollbar setup
+        scrollbar_width = 20
+        scrollbar_x = modal_rect.right - scrollbar_width - 10
+        scrollbar_y = content_start_y
+        scrollbar_height = content_height
+
+        # Calculate scroll limits
+        max_scroll = max(0, total_content_height - content_height)
+        self.research_scroll_offset = max(0, min(self.research_scroll_offset, max_scroll))
+
+        # Draw scrollbar if needed
+        if max_scroll > 0:
+            # Scrollbar track
+            scrollbar_track = pygame.Rect(
+                scrollbar_x, scrollbar_y, scrollbar_width, scrollbar_height
+            )
+            pygame.draw.rect(screen, constants.SLIDER_BG_COLOR, scrollbar_track, border_radius=10)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, scrollbar_track, 1, border_radius=10
+            )
+
+            # Scrollbar handle
+            handle_height = max(20, int(scrollbar_height * (content_height / total_content_height)))
+            handle_y = scrollbar_y + int(
+                (self.research_scroll_offset / max_scroll) * (scrollbar_height - handle_height)
+            )
+            handle_rect = pygame.Rect(scrollbar_x + 2, handle_y, scrollbar_width - 4, handle_height)
+            pygame.draw.rect(screen, constants.BOTTOM_PANEL_TAB_COLOR, handle_rect, border_radius=8)
+            pygame.draw.rect(
+                screen, constants.BOTTOM_PANEL_BORDER_COLOR, handle_rect, 1, border_radius=8
+            )
+
+            # Store scrollbar rects for interaction
+            self.research_scrollbar_track_rect = scrollbar_track
+            self.research_scrollbar_handle_rect = handle_rect
+        else:
+            self.research_scrollbar_track_rect = None
+            self.research_scrollbar_handle_rect = None
+
+        # Create clipping area for content - equal margins on both sides
+        content_rect = pygame.Rect(
+            modal_x + 10, content_start_y, modal_width - scrollbar_width - 20, content_height
+        )
+
+        # Create a surface for the scrollable content
+        content_surface = pygame.Surface(
+            (content_rect.width, max(content_height, total_content_height)), pygame.SRCALPHA
+        )
+
+        # Calculate item positions
+        start_x = (content_rect.width - (2 * item_width + item_padding)) / 2
+        start_y = -self.research_scroll_offset
+
+        # Clear button rects
+        if not hasattr(self, "research_modal_button_rects"):
+            self.research_modal_button_rects = {}
+        else:
+            # Clear previous button rects for this ship type
+            keys_to_remove = [
+                key for key in self.research_modal_button_rects.keys() if key[0] == ship_type
+            ]
+            for key in keys_to_remove:
+                del self.research_modal_button_rects[key]
+
+        # Draw research items on content surface
         for i, (key, info) in enumerate(research_defs.items()):
             col = i % 2
             row = i // 2
             x = start_x + col * (item_width + item_padding)
-            y = start_y + row * (item_height + 38)
+            y = start_y + row * (item_height + row_spacing)
+
+            # Skip items that are completely outside the visible area
+            if y + item_height < 0 or y > content_height:
+                continue
+
             item_rect = pygame.Rect(x, y, item_width, item_height)
-            pygame.draw.rect(screen, constants.SLIDER_BG_COLOR, item_rect, border_radius=12)
             pygame.draw.rect(
-                screen, constants.BOTTOM_PANEL_BORDER_COLOR, item_rect, 1, border_radius=12
+                content_surface, constants.SLIDER_BG_COLOR, item_rect, border_radius=12
             )
+            pygame.draw.rect(
+                content_surface, constants.BOTTOM_PANEL_BORDER_COLOR, item_rect, 1, border_radius=12
+            )
+
             # Name and level (left-aligned, top)
             name = info["display_name"]
             level = research_levels[key]
@@ -868,47 +1047,51 @@ class HUDManager:
             name_surf = item_font.render(
                 f"{name} [{level}/{max_level}]", True, constants.UI_TEXT_COLOR
             )
-            name_y = item_rect.top + 18
-            screen.blit(name_surf, (item_rect.left + 22, name_y))
+            name_y = item_rect.top + 15  # Reduced from 18
+            content_surface.blit(name_surf, (item_rect.left + 18, name_y))  # Reduced from 22
+
             # Cost (left-aligned, below name)
             next_cost = research_system.get_next_level_cost(key, ship_type)
-            cost_y = name_y + name_surf.get_height() + 10
-            cost_x = item_rect.left + 22
+            cost_y = name_y + name_surf.get_height() + 8  # Reduced from 10
+            cost_x = item_rect.left + 18  # Reduced from 22
             if next_cost:
                 for idx, (res, amount) in enumerate(next_cost.items()):
                     color = constants.UI_TEXT_COLOR
-                    if res.lower() == "credits":
+                    if res == ResourceType.CREDITS:
                         color = constants.CREDITS_COLOR
-                    elif res.lower() == "plasma":
+                    elif res == ResourceType.PLASMA:
                         color = constants.PLASMA_COLOR
-                    elif res.lower() == "tritanium":
+                    elif res == ResourceType.TRITANIUM:
                         color = constants.TRITANIUM_COLOR
-                    part_surf = body_font.render(f"{amount} {res}", True, color)
-                    screen.blit(part_surf, (cost_x, cost_y))
+                    part_surf = body_font.render(f"{amount} {res.value}", True, color)
+                    content_surface.blit(part_surf, (cost_x, cost_y))
                     cost_x += part_surf.get_width() + 16
+
             # Effect (left-aligned, above button)
             effect = info["effect_per_level"]
-            effect_surf = effect_font.render(f"+{int(effect*100)}%/lvl", True, constants.WHITE)
-            effect_y = item_rect.bottom - 38 - effect_surf.get_height()
-            screen.blit(effect_surf, (item_rect.left + 22, effect_y))
+            effect_text = f"+{int(effect*100)}%/lvl" if effect >= 0 else f"{int(effect*100)}%/lvl"
+            effect_surf = effect_font.render(effect_text, True, constants.WHITE)
+            effect_y = item_rect.bottom - 32 - effect_surf.get_height()  # Reduced from 38
+            content_surface.blit(effect_surf, (item_rect.left + 18, effect_y))  # Reduced from 22
+
             # Button (bottom right corner, dynamic size)
             btn_width = max(80, min(int(item_width * 0.32), 160))
             btn_height = max(28, min(int(item_height * 0.28), 48))
-            btn_x = item_rect.right - btn_width - 22
-            btn_y = item_rect.bottom - btn_height - 18
+            btn_x = item_rect.right - btn_width - 18  # Reduced from 22
+            btn_y = item_rect.bottom - btn_height - 15  # Reduced from 18
             can_buy = next_cost and research_system.can_research(key, ship_type, planet.storage)
             button_color = (
                 constants.BOTTOM_PANEL_TAB_COLOR if can_buy else constants.SLIDER_BG_COLOR
             )
             text_color = constants.UI_TEXT_COLOR if can_buy else constants.GRAY
             pygame.draw.rect(
-                screen,
+                content_surface,
                 button_color,
                 (btn_x, btn_y, btn_width, btn_height),
                 border_radius=btn_height // 3,
             )
             pygame.draw.rect(
-                screen,
+                content_surface,
                 constants.BOTTOM_PANEL_BORDER_COLOR,
                 (btn_x, btn_y, btn_width, btn_height),
                 1,
@@ -919,10 +1102,23 @@ class HUDManager:
             btn_font = pygame.font.SysFont(None, btn_font_size, bold=False)
             btn_surf = btn_font.render(btn_text, True, text_color)
             btn_rect = btn_surf.get_rect(center=(btn_x + btn_width / 2, btn_y + btn_height / 2))
-            screen.blit(btn_surf, btn_rect)
-            # Store button rect for click detection
-            if not hasattr(self, "research_modal_button_rects"):
-                self.research_modal_button_rects = {}
-            self.research_modal_button_rects[(ship_type, key)] = pygame.Rect(
-                btn_x, btn_y, btn_width, btn_height
+            content_surface.blit(btn_surf, btn_rect)
+
+            # Store button rect for click detection (adjusted for screen coordinates)
+            screen_btn_rect = pygame.Rect(
+                content_rect.x + btn_x,
+                content_rect.y + btn_y,  # No additional scroll offset needed
+                btn_width,
+                btn_height,
             )
+            # Only store if button is visible
+            if (
+                screen_btn_rect.bottom > content_rect.top
+                and screen_btn_rect.top < content_rect.bottom
+            ):
+                self.research_modal_button_rects[(ship_type, key)] = screen_btn_rect
+
+        # Blit the content surface to the screen with clipping
+        screen.set_clip(content_rect)
+        screen.blit(content_surface, content_rect.topleft)
+        screen.set_clip(None)

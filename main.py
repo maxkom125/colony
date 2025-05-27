@@ -27,6 +27,7 @@ from src.entities.planet import Planet
 from src.entities.asteroid import Asteroid
 from src.entities.ships.scanner_ship import ScannerShip
 from src.entities.ships.mining_ship import MiningShip
+from src.enums import ShipType
 
 from src.systems import construction_system  # Import the new construction system
 from src.rendering import renderer  # Import the new renderer module
@@ -92,6 +93,19 @@ def main():
 
     # --- Create Game World Objects ---
     central_planet = Planet(position=Vector2(0, 0))  # Uses constants internally
+
+    # Debug mode: Add abundant resources for testing
+    if os.environ.get("GAME_DEBUG"):
+        from src.enums import ResourceType
+
+        debug_resources = {
+            ResourceType.TRITANIUM: 10000,
+            ResourceType.CREDITS: 10000,
+            ResourceType.PLASMA: 10000,
+        }
+        central_planet.add_resources(debug_resources)
+        logger.info(f"Debug mode: Added abundant resources to planet: {debug_resources}")
+
     asteroids = []
     max_gen_attempts = (
         constants.ASTEROID_COUNT * 10
@@ -195,11 +209,24 @@ def main():
                 if event.key == pygame.K_ESCAPE:
                     running = False  # Allow exiting fullscreen with ESC
             elif event.type == pygame.MOUSEWHEEL:
-                # Delegate zoom handling to camera object
-                zoom_direction = event.y
-                camera.handle_zoom(zoom_direction, mouse_pos_vec)
-                # Remove old zoom logic
+                # Handle mouse wheel scrolling in research modal first
+                handled_by_research = False
+                if getattr(hud_manager, "research_modal_ship_type", None):
+                    # Check if mouse is over the research modal
+                    modal_width = int(constants.SCREEN_WIDTH * 0.56)
+                    modal_height = int(constants.SCREEN_HEIGHT * 0.66)
+                    modal_x = (constants.SCREEN_WIDTH - modal_width) // 2
+                    modal_y = (constants.SCREEN_HEIGHT - modal_height) // 2
+                    modal_rect = pygame.Rect(modal_x, modal_y, modal_width, modal_height)
 
+                    if modal_rect.collidepoint(mouse_pos_vec):
+                        hud_manager.handle_research_scroll(event.y)
+                        handled_by_research = True
+
+                # Handle zoom if not handled by research modal
+                if not handled_by_research:
+                    zoom_direction = event.y
+                    camera.handle_zoom(zoom_direction, mouse_pos_vec)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left click
                     clicked_on_ui = False
@@ -228,14 +255,14 @@ def main():
                             # Check Construction Buttons
                             if scanner_button_rect and scanner_button_rect.collidepoint(event.pos):
                                 new_ship = construction_system.attempt_construction(
-                                    central_planet, "scanner"
+                                    central_planet, ShipType.SCANNER, research_system
                                 )
                                 if new_ship:
                                     fleet.add_ship(new_ship)
                                     clicked_on_ui = True
                             elif miner_button_rect and miner_button_rect.collidepoint(event.pos):
                                 new_ship = construction_system.attempt_construction(
-                                    central_planet, "miner"
+                                    central_planet, ShipType.MINER, research_system
                                 )
                                 if new_ship:
                                     fleet.add_ship(new_ship)
@@ -319,29 +346,43 @@ def main():
                                 if close_rect and close_rect.collidepoint(event.pos):
                                     hud_manager.research_modal_ship_type = None
                                     clicked_on_ui = True
-                                # Research buttons (modal only)
-                                button_rects = getattr(
-                                    hud_manager, "research_modal_button_rects", {}
-                                )
-                                ship_type = hud_manager.research_modal_ship_type
-                                for (stype, key), btn_rect in button_rects.items():
-                                    if (
-                                        stype == ship_type
-                                        and btn_rect
-                                        and btn_rect.collidepoint(event.pos)
-                                    ):
-                                        if research_system.attempt_research_purchase(
-                                            key, ship_type, central_planet.storage, fleet
-                                        ):
-                                            logger.info(
-                                                f"Research: {ship_type.value} {key} upgraded!"
-                                            )
-                                        else:
-                                            logger.warning(
-                                                f"Research: {ship_type.value} {key} upgrade FAILED."
-                                            )
+
+                                # Scrollbar drag start
+                                if not clicked_on_ui:
+                                    if hud_manager.start_research_scrollbar_drag(event.pos):
                                         clicked_on_ui = True
-                                        break
+
+                                # Research buttons (modal only)
+                                if not clicked_on_ui:
+                                    button_rects = getattr(
+                                        hud_manager, "research_modal_button_rects", {}
+                                    )
+                                    ship_type = hud_manager.research_modal_ship_type
+                                    for (stype, key), btn_rect in button_rects.items():
+                                        if (
+                                            stype == ship_type
+                                            and btn_rect
+                                            and btn_rect.collidepoint(event.pos)
+                                        ):
+                                            logger.debug(
+                                                f"Clicked research button: {key} for {stype}"
+                                            )
+                                            logger.debug(
+                                                f"Planet storage before purchase: {central_planet.storage}"
+                                            )
+
+                                            if research_system.attempt_research_purchase(
+                                                key, ship_type, central_planet.storage, fleet
+                                            ):
+                                                logger.info(
+                                                    f"Research: {ship_type.value} {key} upgraded!"
+                                                )
+                                            else:
+                                                logger.warning(
+                                                    f"Research: {ship_type.value} {key} upgrade FAILED."
+                                                )
+                                            clicked_on_ui = True
+                                            break
                                 if clicked_on_ui:
                                     break
                             # --- Handle Miner/Scanner button clicks for research modal ---
@@ -408,12 +449,17 @@ def main():
                 if event.button == 1:  # Left mouse button up
                     if hud_manager.dragging_slider:  # Stop dragging slider
                         hud_manager.stop_slider_drag()
+                    # Stop research scrollbar dragging
+                    if getattr(hud_manager, "research_scrollbar_dragging", False):
+                        hud_manager.stop_research_scrollbar_drag()
                 elif event.button == 2:
                     panning = False
                     pan_start_pos = None
             elif event.type == pygame.MOUSEMOTION:
                 if hud_manager.dragging_slider:
                     hud_manager.update_slider_drag(event.pos, central_planet, space_market)
+                elif getattr(hud_manager, "research_scrollbar_dragging", False):
+                    hud_manager.update_research_scrollbar_drag(event.pos)
                 elif panning and pan_start_pos:
                     pan_delta_screen = mouse_pos_vec - pan_start_pos
                     camera.handle_pan(pan_delta_screen)
