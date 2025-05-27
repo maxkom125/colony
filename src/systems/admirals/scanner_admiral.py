@@ -8,6 +8,7 @@ from ...utils import find_nearest_object
 from .base_admiral import Admiral, DuplicateShipError, ShipNotFoundError
 from typing import TYPE_CHECKING
 from ...systems.movement_system import calc_fuel_needed_round_trip
+from ...logger import logger  # Import the logger
 
 if TYPE_CHECKING:
     from ...entities.entity import Entity
@@ -23,13 +24,13 @@ class ScannerAdmiral(Admiral):
     def add_ship(self, ship: ScannerShip):
         """Registers a new scanner under the admiral's command."""
         if not isinstance(ship, ScannerShip):
-            print(f"WARN: Attempted to add non-ScannerShip {ship.id} to ScannerAdmiral.")
+            logger.warning(f"Attempted to add non-ScannerShip {ship.id} to ScannerAdmiral.")
             return
 
         try:
             super().add_ship(ship)
         except DuplicateShipError as e:
-            print(f"INFO: {e}")
+            logger.info(f"During add_ship for {ship.id}: {e}")
             return
         # No scanner-specific assignment categories needed for now
 
@@ -39,15 +40,15 @@ class ScannerAdmiral(Admiral):
         try:
             super().remove_ship(ship_id)
         except ShipNotFoundError as e:
-            print(f"INFO: {e}")
+            logger.info(f"During remove_ship for {ship_id}: {e}")
             return
-        print(f"DEBUG: Scanner {ship_id} removed.")
+        logger.debug(f"Scanner {ship_id} removed.")
 
     # --- Core Logic ---
 
     def issue_command(self, ship: ScannerShip, accepted_states: list[ShipState] = None):
         """Handles state transitions based on arrival or completion."""
-        print(f"DEBUG: Issue command for Scanner {ship.id} state: {ship.state}")
+        logger.debug(f"Issue command for Scanner {ship.id} state: {ship.state}")
         if not self.issue_command_checks(ship, accepted_states):
             return
 
@@ -58,7 +59,7 @@ class ScannerAdmiral(Admiral):
             case ShipState.SCANNING:
                 # Scan finished (handled internally by ship.update), potentially go idle
                 # fleet.give_orders will assign idle scanners to new targets later
-                print(f"DEBUG: Scanner {ship.id} finished scanning. Going IDLE.")
+                logger.debug(f"Scanner {ship.id} finished scanning. Going IDLE.")
                 ship.set_state(ShipState.IDLE)
                 ship.set_target(None)
                 # Next step: fleet.give_orders -> scanner_admiral.assign_idle_scanners
@@ -73,8 +74,8 @@ class ScannerAdmiral(Admiral):
 
         # 1. Check if target exists
         if not target:
-            print(
-                f"WARN: Scanner {ship.id} arrived at destination but target is missing. Going IDLE."
+            logger.warning(
+                f"Scanner {ship.id} arrived at destination but target is missing. Going IDLE."
             )
             ship.set_state(ShipState.IDLE)
             # No need to clear target, it's already None
@@ -82,8 +83,8 @@ class ScannerAdmiral(Admiral):
 
         # 2. Check if target is an Asteroid
         if not isinstance(target, Asteroid):
-            print(
-                f"DEBUG: Scanner {ship.id} arrived at non-asteroid target {type(target).__name__} {target.id}. Going IDLE."
+            logger.debug(
+                f"Scanner {ship.id} arrived at non-asteroid target {type(target).__name__} {target.id if target else 'None'}. Going IDLE."
             )
             ship.set_state(ShipState.IDLE)
             ship.set_target(None)
@@ -91,8 +92,8 @@ class ScannerAdmiral(Admiral):
 
         # 3. Check if the Asteroid target is already scanned
         if target.scanned:
-            print(
-                f"DEBUG: Scanner {ship.id} arrived at already scanned Asteroid {target.id}. Going IDLE."
+            logger.debug(
+                f"Scanner {ship.id} arrived at already scanned Asteroid {target.id}. Going IDLE."
             )
             ship.set_state(ShipState.IDLE)
             ship.set_target(None)
@@ -100,7 +101,7 @@ class ScannerAdmiral(Admiral):
 
         # ---- Logic ----
         # All checks passed, proceed with scanning
-        print(f"DEBUG: Scanner {ship.id} arrived at unscanned Asteroid {target.id}. Starting scan.")
+        logger.debug(f"Scanner {ship.id} arrived at unscanned Asteroid {target.id}. Starting scan.")
         ship.set_state(ShipState.SCANNING)
         # Keep the target assigned while scanning
 
@@ -136,11 +137,12 @@ class ScannerAdmiral(Admiral):
         asteroids_to_scan = self._get_valid_scan_targets(asteroids)
 
         if not asteroids_to_scan:
-            print("DEBUG: No asteroids possible to scan!")
+            logger.debug("No asteroids possible to scan!")
             return
 
         # Improved assignment: nearest unscanned AND untargeted asteroid
         for scanner in idle_scanners:
+            # Find the nearest valid asteroid for this scanner
             target_asteroid = self._find_nearest_valid_asteroid(
                 scanner.position,
                 scanner.scan_range - scanner.radius,
@@ -150,24 +152,26 @@ class ScannerAdmiral(Admiral):
             if target_asteroid:
                 # check if we have enough fuel to scan the asteroid and return to base
                 fuel_needed = calc_fuel_needed_round_trip(scanner, target_asteroid)
-                if scanner.fuel <= fuel_needed:
-                    print(f"DEBUG: Scanner {scanner.id} has insufficient fuel to scan Asteroid {target_asteroid.id}. Returning to base.")
+                if scanner.fuel < fuel_needed:  # Strict inequality
+                    logger.debug(
+                        f"Scanner {scanner.id} (fuel: {scanner.fuel:.1f}) insufficient for Asteroid {target_asteroid.id} (needs: {fuel_needed:.1f}). Returning to base."
+                    )
                     scanner.set_state(ShipState.RETURNING_TO_BASE)
                     scanner.set_target(scanner.home)
-                    continue
-                
+                    continue  # Try next scanner
+
                 # Use set_target if available, otherwise direct assignment
                 scanner.set_target(target_asteroid)
                 scanner.set_state(ShipState.MOVING_TO_SCAN)
                 # Add the newly assigned target to the set immediately
                 # to prevent other idle scanners in *this* cycle from picking it.
                 asteroids_to_scan.remove(target_asteroid)
-                print(f"DEBUG: Scanner {scanner.id} assigned to scan Asteroid {target_asteroid.id}")
+                logger.debug(f"Scanner {scanner.id} assigned to scan Asteroid {target_asteroid.id}")
             else:
                 # No available unscanned & untargeted & small enough asteroids left
-                print(f"DEBUG: No suitable untargeted scan target found for Scanner {scanner.id}.")
+                logger.debug(f"No suitable untargeted scan target found for Scanner {scanner.id}.")
                 # Scanner remains IDLE
-    
+
     def _find_nearest_valid_asteroid(
         self,
         position: Vector2,

@@ -161,20 +161,24 @@ def test_add_ship_success(miner_admiral, mock_miner):
     mock_miner.set_resource_to_mine.assert_not_called()  # Verify no call
 
 
-def test_add_ship_non_miner_ignored(miner_admiral, capsys):
+def test_add_ship_non_miner_ignored(miner_admiral, mocker):
     """Test adding a non-MiningShip is ignored and logs a warning."""
     non_miner = MagicMock(id=500)  # Doesn't inherit/spec MiningShip
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
+    
     miner_admiral.add_ship(non_miner)
-    captured = capsys.readouterr()
+    
     assert miner_admiral.get_ship_count() == 0
     assert non_miner.id not in miner_admiral.ships_assignments
-    assert f"WARN: Attempted to add non-MiningShip {non_miner.id}" in captured.out
+    mock_logger.warning.assert_called_with(f"Attempted to add non-MiningShip {non_miner.id} to MinerAdmiral.")
     for category in miner_admiral.assignments_ships:
         assert non_miner.id not in miner_admiral.assignments_ships[category]
 
 
-def test_add_ship_duplicate_handled_by_base(miner_admiral, mock_miner, capsys):
+def test_add_ship_duplicate_handled_by_base(miner_admiral, mock_miner, mocker):
     """Test adding a duplicate MiningShip raises error from base, logs info, and doesn't double-add."""
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
+    
     miner_admiral.add_ship(mock_miner)  # Add first time
 
     # Create another mock with the same ID
@@ -182,7 +186,6 @@ def test_add_ship_duplicate_handled_by_base(miner_admiral, mock_miner, capsys):
 
     # Add the duplicate
     miner_admiral.add_ship(duplicate_miner)
-    captured = capsys.readouterr()
 
     # Check state: only original miner should be present
     assert miner_admiral.get_ship_count() == 1
@@ -191,8 +194,8 @@ def test_add_ship_duplicate_handled_by_base(miner_admiral, mock_miner, capsys):
     assert len(miner_admiral.assignments_ships[miner_admiral.free_ship_category]) == 1
     assert mock_miner.id in miner_admiral.assignments_ships[miner_admiral.free_ship_category]
 
-    # Check that the base class error message was logged
-    assert f"INFO: {mock_miner.type} {mock_miner.id} already managed by this Admiral." in captured.out
+    # Check that the base class error message was logged - check the actual format
+    mock_logger.info.assert_called_with(f"During add_ship for {mock_miner.id}: {mock_miner.type} {mock_miner.id} already managed by this Admiral.")
 
 
 # Test remove_ship
@@ -345,9 +348,11 @@ def test_adjust_ship_count_increase_multiple(mock_random_choice, miner_admiral):
     miner_map[1].set_resource_to_mine.assert_not_called()
 
 
-def test_adjust_ship_count_not_enough_free_miners(miner_admiral, capsys):
+def test_adjust_ship_count_not_enough_free_miners(miner_admiral, mocker):
     """Test assigning more miners than free warns and assigns available."""
     miner1 = MockMiningShip(ship_id=1)
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
+    
     miner_admiral.add_ship(miner1)  # Only one free miner
     # Reset mocks after add_ship
     miner1.set_state.reset_mock()
@@ -356,7 +361,6 @@ def test_adjust_ship_count_not_enough_free_miners(miner_admiral, capsys):
     assert len(miner_admiral.assignments_ships["Random"]) == 1
 
     miner_admiral.adjust_ship_count_for_category("Plasma", 3)  # Request 3
-    captured = capsys.readouterr()
 
     # Should only assign the 1 available miner
     assert len(miner_admiral.assignments_ships["Random"]) == 0
@@ -366,19 +370,20 @@ def test_adjust_ship_count_not_enough_free_miners(miner_admiral, capsys):
     miner1.set_state.assert_called_once_with(ShipState.IDLE)
     miner1.set_resource_to_mine.assert_called_once_with(None)
     assert miner1.target is None
-    assert "WARN: Not enough free miners to assign" in captured.out
+    mock_logger.warning.assert_called_with("Not enough free miners to assign to Plasma. Requested: 3, Available: 1. Assigning 1.")
 
 
-def test_adjust_ship_count_invalid_category(miner_admiral, capsys):
+def test_adjust_ship_count_invalid_category(miner_admiral, mocker):
     """Test adjusting assignment for an invalid category warns."""
     miner1 = MockMiningShip(ship_id=1)
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
+    
     miner_admiral.add_ship(miner1)
     # Reset mocks after add_ship
     miner1.set_state.reset_mock()
     miner1.set_resource_to_mine.reset_mock()
 
     miner_admiral.adjust_ship_count_for_category("Uranium", 1)  # Invalid category
-    captured = capsys.readouterr()
 
     # State should not change
     assert len(miner_admiral.assignments_ships["Random"]) == 1
@@ -386,19 +391,20 @@ def test_adjust_ship_count_invalid_category(miner_admiral, capsys):
     assert miner_admiral.ships_assignments[miner1.id] == "Random"
     miner1.set_state.assert_not_called()
     miner1.set_resource_to_mine.assert_not_called()
-    assert "WARN: Invalid category Uranium" in captured.out
+    mock_logger.warning.assert_called_with("Invalid category Uranium for assignment update.")
 
 
-def test_adjust_ship_count_delta_zero(miner_admiral, capsys):
+def test_adjust_ship_count_delta_zero(miner_admiral, mocker):
     """Test adjusting assignment with delta = 0 logs info and does nothing."""
     miner1 = MockMiningShip(ship_id=1)
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
+    
     miner_admiral.add_ship(miner1)
     # Reset mocks after add_ship
     miner1.set_state.reset_mock()
     miner1.set_resource_to_mine.reset_mock()
 
     miner_admiral.adjust_ship_count_for_category("Tritanium", 0)
-    captured = capsys.readouterr()
 
     # State should not change
     assert len(miner_admiral.assignments_ships["Random"]) == 1
@@ -406,7 +412,7 @@ def test_adjust_ship_count_delta_zero(miner_admiral, capsys):
     assert miner_admiral.ships_assignments[miner1.id] == "Random"
     miner1.set_state.assert_not_called()
     miner1.set_resource_to_mine.assert_not_called()
-    assert "INFO: No change in assignment for Tritanium" in captured.out
+    mock_logger.info.assert_called_with("No change in assignment for Tritanium (delta is 0 or adjusted to 0).")
 
 
 # --- Tests for Decreasing Assignments (Negative Delta) ---
@@ -509,9 +515,11 @@ def test_adjust_ship_count_decrease_multiple(miner_admiral):
     assert miner_map[3].target is None
 
 
-def test_adjust_ship_count_decrease_below_zero_warns(miner_admiral, capsys):
+def test_adjust_ship_count_decrease_below_zero_warns(miner_admiral, mocker):
     """Test trying to remove more miners than assigned warns and does nothing."""
     miner1 = MockMiningShip(ship_id=1)
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
+    
     miner_admiral.add_ship(miner1)
 
     # Assign the miner to Plasma
@@ -531,7 +539,6 @@ def test_adjust_ship_count_decrease_below_zero_warns(miner_admiral, capsys):
 
     # Try to remove 2 miners (delta = -2)
     miner_admiral.adjust_ship_count_for_category("Plasma", -2)
-    captured = capsys.readouterr()
 
     # State should not change
     assert len(miner_admiral.assignments_ships["Random"]) == 0
@@ -539,7 +546,7 @@ def test_adjust_ship_count_decrease_below_zero_warns(miner_admiral, capsys):
     assert miner_admiral.ships_assignments[miner1.id] == "Plasma"
     miner1.set_state.assert_not_called()
     miner1.set_resource_to_mine.assert_not_called()
-    assert "WARN: Cannot assign less miners than 0" in captured.out
+    mock_logger.warning.assert_called_with("Cannot assign less miners than 0. In Plasma there are 1 miners.")
 
 
 def test_adjust_ship_count_decrease_from_empty_category(miner_admiral):
@@ -803,17 +810,17 @@ def test_find_target_random_category_no_matching_asteroid(miner_admiral):
     assert found_resource is None # Resource is also None here
 
 
-def test_find_target_invalid_category(miner_admiral, capsys):
+def test_find_target_invalid_category(miner_admiral, mocker):
     """Test _find_target_for_category with an invalid category string."""
     miner = MockMiningShip()
     asteroids = [MockAsteroid()]
+    mock_logger = mocker.patch('src.systems.admirals.miner_admiral.logger')
 
     found_target, found_resource = miner_admiral._find_target_for_category(miner, "InvalidCategory", asteroids)
-    captured = capsys.readouterr()
 
     assert found_target is None # Check only the target part
     assert found_resource is None # Resource is also None here
-    assert "WARN: Invalid category InvalidCategory" in captured.out
+    mock_logger.warning.assert_called_with("Invalid category InvalidCategory for asteroid assignment.")
 
 
 # --- More specific tests for assign_idle_miners Edge Cases ---

@@ -120,27 +120,31 @@ def test_add_ship_success(scanner_admiral, mock_scanner):
     assert scanner_admiral.ships[mock_scanner.id] is mock_scanner
     assert mock_scanner.admiral is scanner_admiral # Check admiral reference is set
 
-def test_add_ship_non_scanner_ignored(scanner_admiral, capsys):
+def test_add_ship_non_scanner_ignored(scanner_admiral, mocker):
     """Test adding a non-ScannerShip is ignored and logs a warning."""
     non_scanner = MagicMock(id=500) # Doesn't inherit/spec ScannerShip
+    mock_logger = mocker.patch('src.systems.admirals.scanner_admiral.logger')
+    
     scanner_admiral.add_ship(non_scanner)
-    captured = capsys.readouterr()
+    
     assert scanner_admiral.get_ship_count() == 0
-    assert f"WARN: Attempted to add non-ScannerShip {non_scanner.id}" in captured.out
+    mock_logger.warning.assert_called_with(f"Attempted to add non-ScannerShip {non_scanner.id} to ScannerAdmiral.")
 
-def test_add_ship_duplicate_handled_by_base(scanner_admiral, mock_scanner, capsys):
+def test_add_ship_duplicate_handled_by_base(scanner_admiral, mock_scanner, mocker):
     """Test adding a duplicate ScannerShip raises error from base and logs info."""
+    mock_logger = mocker.patch('src.systems.admirals.scanner_admiral.logger')
+    
     scanner_admiral.add_ship(mock_scanner) # Add first time
     # Create another mock with the same ID
     duplicate_scanner = MockScannerShip(ship_id=mock_scanner.id)
     # Add the duplicate
     scanner_admiral.add_ship(duplicate_scanner)
-    captured = capsys.readouterr()
+    
     # Check state: only original scanner should be present
     assert scanner_admiral.get_ship_count() == 1
     assert scanner_admiral.ships[mock_scanner.id] is mock_scanner
     # Check that the base class error message was logged
-    assert f"INFO: {mock_scanner.type} {mock_scanner.id} already managed by this Admiral." in captured.out
+    mock_logger.info.assert_called_with(f"During add_ship for {mock_scanner.id}: {mock_scanner.type} {mock_scanner.id} already managed by this Admiral.")
 
 def test_remove_ship_success(scanner_admiral, mock_scanner):
     """Test removing an existing ScannerShip."""
@@ -149,14 +153,16 @@ def test_remove_ship_success(scanner_admiral, mock_scanner):
     assert scanner_admiral.get_ship_count() == 0
     assert mock_scanner.id not in scanner_admiral.ships
 
-def test_remove_ship_not_found_handled_by_base(scanner_admiral, capsys):
+def test_remove_ship_not_found_handled_by_base(scanner_admiral, mocker):
     """Test removing a non-existent ship ID raises error from base and logs info."""
     non_existent_id = 999
+    mock_logger = mocker.patch('src.systems.admirals.scanner_admiral.logger')
+    
     scanner_admiral.remove_ship(non_existent_id)
-    captured = capsys.readouterr()
+    
     assert scanner_admiral.get_ship_count() == 0
     # Base class now raises ShipNotFoundError, check for warning log instead
-    assert f"""Ship {non_existent_id} not found in this Admiral's fleet.""" in captured.out 
+    mock_logger.info.assert_called_with(f'During remove_ship for {non_existent_id}: "Ship {non_existent_id} not found in this Admiral\'s fleet."')
 
 # --- Tests for issue_command --- #
 

@@ -3,6 +3,7 @@ ResearchSystem: Manages researchable upgrades, their costs, levels, and applicat
 """
 
 from src.enums import ShipType
+from src.logger import logger # Import the logger
 
 class ResearchSystem:
     def __init__(self):
@@ -146,7 +147,7 @@ class ResearchSystem:
             if research_name == "cargo_capacity":
                 new_value = int(new_value)
             setattr(ship, research_name, new_value)
-            print(f"INFO: Applied research effect to {ship_type} {research_name}: {current_value} -> {new_value}")
+            logger.info(f"Applied research effect to {ship_type} {ship.id} for {research_name}: {current_value:.2f} -> {new_value:.2f}")
 
     def attempt_research_purchase(self, research_name, ship_type, planet_storage, fleet=None):
         """

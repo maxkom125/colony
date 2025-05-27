@@ -9,6 +9,7 @@ from ...utils import find_nearest_object, convert_resource_type_to_enum
 from ... import constants
 from .base_admiral import Admiral, DuplicateShipError, ShipNotFoundError
 from ..movement_system import calc_fuel_needed_round_trip
+from ...logger import logger  # Import the logger
 
 
 class MinerAdmiral(Admiral):
@@ -30,7 +31,7 @@ class MinerAdmiral(Admiral):
         """Registers a new miner under the admiral's command."""
         # Basic type check first
         if not isinstance(ship, MiningShip):
-            print(f"WARN: Attempted to add non-MiningShip {ship.id} to MinerAdmiral.")
+            logger.warning(f"Attempted to add non-MiningShip {ship.id} to MinerAdmiral.")
             return
 
         try:
@@ -38,7 +39,7 @@ class MinerAdmiral(Admiral):
             super().add_ship(ship)
         except DuplicateShipError as e:
             # Base class failed (duplicate found), handle it (e.g., print warning)
-            print(f"INFO: {e}")  # Log the error from the base class
+            logger.info(f"During add_ship for {ship.id}: {e}")
             return  # Stop further execution in this method
 
         # --- If no exception, proceed with miner-specific logic ---
@@ -60,10 +61,10 @@ class MinerAdmiral(Admiral):
         try:
             super().remove_ship(ship_id)
         except ShipNotFoundError as e:
-            print(f"INFO: {e}")
+            logger.info(f"During remove_ship for {ship_id}: {e}")
             return
 
-        print(f"DEBUG: Miner {ship_id} removed.")
+        logger.debug(f"Miner {ship_id} removed.")
 
     # --- Helper methods for HUD/External Info ---
     def get_all_categories(self) -> list[str]:
@@ -88,26 +89,26 @@ class MinerAdmiral(Admiral):
         """Adjusts the target number of miners for a category."""
         # --- Checks ---
         if category not in self.assignments_ships:
-            print(f"WARN: Invalid category {category} for assignment update.")
+            logger.warning(f"Invalid category {category} for assignment update.")
             return
 
         free_miners_available = len(self.assignments_ships[self.free_ship_category])
         if delta > 0 and free_miners_available < delta:
-            print(
-                f"WARN: Not enough free miners to assign to {category}. "
-                f"Only {free_miners_available} free miners available."
+            logger.warning(
+                f"Not enough free miners to assign to {category}. "
+                f"Requested: {delta}, Available: {free_miners_available}. Assigning {free_miners_available}."
             )
             delta = free_miners_available
 
         if delta == 0:
-            print(f"INFO: No change in assignment for {category}.")
+            logger.info(f"No change in assignment for {category} (delta is 0 or adjusted to 0).")
             return
 
         current_len = len(self.assignments_ships[category])
         potential_len = current_len + delta
         if potential_len < 0:
-            print(
-                f"WARN: Cannot assign less miners than 0. In {category} there are {current_len} miners."
+            logger.warning(
+                f"Cannot assign less miners than 0. In {category} there are {current_len} miners."
             )
             return
 
@@ -115,7 +116,7 @@ class MinerAdmiral(Admiral):
         # Pick free ships to assign to category
         for _ in range(delta):
             if not self.assignments_ships[self.free_ship_category]:
-                print(f"WARN: No free miners to assign to {category}.")
+                logger.warning(f"No free miners to assign to {category}.")
                 continue
 
             # Pick a random free ship
@@ -125,7 +126,7 @@ class MinerAdmiral(Admiral):
         # Unassign miners from category for negative delta
         for _ in range(-delta):
             if not self.assignments_ships[category]:
-                print(f"WARN: No miners to unassign from {category}.")
+                logger.warning(f"No miners to unassign from {category}.")
                 continue
             ship_id = self.assignments_ships[category][-1]
             self.update_ship_assignment(ship_id, self.free_ship_category)
@@ -161,7 +162,7 @@ class MinerAdmiral(Admiral):
         IDLE -> assign_task -> cycle
         cycle: MOVING_TO_ASTEROID -> MINING -> RETURNING_TO_BASE -> DUMPING (+REFUELING) -> IDLE -> MOVING_TO_ASTEROID
         """
-        print(f"DEBUG: Issue command for Miner {ship.id} state: {ship.state}")
+        logger.debug(f"Issue command for Miner {ship.id} state: {ship.state}")
         if not self.issue_command_checks(ship, accepted_states):
             return
 
@@ -186,15 +187,15 @@ class MinerAdmiral(Admiral):
         """Issue a dumping command to a ship."""
         # ---- Checks ----
         if ship.target is None or not isinstance(ship.target, Planet):
-            print(
-                f"WARN: Miner {self.id} arrived at unknown target type {type(self.target)}. Going IDLE."
+            logger.warning(
+                f"Miner {self.id} arrived at unknown target type {type(self.target)}. Going IDLE."
             )
             ship.set_state(ShipState.IDLE)
             ship.set_target(None)
             return
 
         # ---- Dumping ----
-        print(f"DEBUG: Miner {ship.id} arrived at Planet {ship.target.id}. Starting dump.")
+        logger.debug(f"Miner {ship.id} arrived at Planet {ship.target.id}. Starting dump.")
         ship.set_state(ShipState.DUMPING)
         ship.dumping_timer = (
             0.0  # TODO: set timer here, depending on resource amount, make decreasing
@@ -205,68 +206,70 @@ class MinerAdmiral(Admiral):
         # ---- Checks ----
         # TODO: more checks
         if ship.target is None:
-            print(
-                f"ERROR: Miner {ship.id} has no target, mining command issued. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} has no target, mining command issued. This should never happen!"
             )
             return
         if not isinstance(ship.target, Asteroid):
-            print(
-                f"WARN: Miner {self.id} arrived at unknown target type {type(self.target)}. Going IDLE."
+            logger.warning(
+                f"Miner {self.id} arrived at unknown target type {type(self.target)}. Going IDLE."
             )
             return
         if not ship.target.scanned:
-            print(
-                f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because it is not scanned. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} cannot mine Asteroid {ship.target.id} because it is not scanned. This should never happen!"
             )
             return
         if ship.get_cargo_total() >= ship.cargo_capacity:
-            print(
-                f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because its cargo is full. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} cannot mine Asteroid {ship.target.id} because its cargo is full. This should never happen!"
             )
             return
         # check if ship really arrived at asteroid
         if (
             ship.position.distance_to(ship.target.position) - ship.get_arrival_threshold()
         ) > constants.EPSILON:
-            print(
-                f"ERROR: Miner {ship.id} has not arrived at target, mining command issued. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} has not arrived at target, mining command issued. This should never happen!"
             )
             return
 
         assigned_category = self.ships_assignments[ship.id]
         if assigned_category is None:
-            print(
-                f"ERROR: Miner {ship.id} has no assigned category, mining command issued. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} has no assigned category, mining command issued. This should never happen!"
             )
             return
         if (
             assigned_category not in ResourceType.list_names()
             and assigned_category != self.free_ship_category
         ):
-            print(
-                f"ERROR: Miner {ship.id} has invalid assigned category {assigned_category}, mining command issued. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} has invalid assigned category {assigned_category}, mining command issued. This should never happen!"
             )
             return
         if (
             assigned_category != self.free_ship_category
             and ship.target.resources.get(convert_resource_type_to_enum(assigned_category), 0) <= 0
         ):
-            print(
-                f"ERROR: Miner {ship.id} cannot mine Asteroid {ship.target.id} because it has no {assigned_category}. This should never happen!"
+            logger.error(
+                f"Miner {ship.id} cannot mine Asteroid {ship.target.id} because it has no {assigned_category}. This should never happen!"
             )
             return
         # ---- Mining ----
         ship.set_state(ShipState.MINING)
         ship.mining_timer = constants.MINING_DURATION
-        print(f"DEBUG: Miner {ship.id} state set to MINING")
+        logger.debug(f"Miner {ship.id} state set to MINING")
 
     def issue_returning_to_base_command(self, ship: MiningShip):
         """Issue a returning to base command to a ship."""
         # ---- Returning to base ----
         ship.set_target(ship.home)
         ship.set_state(ShipState.RETURNING_TO_BASE)
-        ship.set_resource_to_mine(None)
-        print(f"DEBUG: Miner {ship.id} state set to RETURNING_TO_BASE")
+        ship.set_resource_to_mine(None)  # Clear resource target when returning
+        logger.debug(
+            f"Miner {ship.id} state set to RETURNING_TO_BASE, target: Planet {ship.home.id if ship.home else 'None'}"
+        )
 
     def assign_idle_miners(self, asteroids: list[Asteroid]):
         """Assigns tasks to idle miners"""
@@ -276,7 +279,7 @@ class MinerAdmiral(Admiral):
             if miner.state == ShipState.IDLE:
                 # Check cargo isn't full - if so, send to base
                 if miner.get_cargo_total() >= miner.cargo_capacity:
-                    print(f"DEBUG: Miner {miner.id} cargo is full, returning to base.")
+                    logger.debug(f"Miner {miner.id} cargo is full, returning to base.")
                     miner.set_target(miner.home)
                     miner.set_state(ShipState.RETURNING_TO_BASE)
                     continue  # Move to next miner
@@ -302,16 +305,22 @@ class MinerAdmiral(Admiral):
             # Check if we have enough fuel to mine the asteroid
             fuel_needed = calc_fuel_needed_round_trip(miner, target_asteroid)
             if miner.fuel <= fuel_needed:
-                print(f"DEBUG: Miner {miner.id} has insufficient fuel to mine Asteroid {target_asteroid.id}. Returning to base.")
+                logger.debug(
+                    f"Miner {miner.id} has insufficient fuel to mine Asteroid {target_asteroid.id}. Returning to base."
+                )
                 self.issue_returning_to_base_command(miner)
             else:
-                print(f"DEBUG: Miner {miner.id} assigned to mine {resource_to_mine} from Asteroid {target_asteroid.id}")
+                logger.debug(
+                    f"Miner {miner.id} assigned to mine {resource_to_mine} from Asteroid {target_asteroid.id}"
+                )
                 miner.set_target(target_asteroid)
                 miner.set_state(ShipState.MOVING_TO_ASTEROID)
                 miner.set_resource_to_mine(resource_to_mine)
         else:
             # no target found, going IDLE
-            print(f"DEBUG: Miner {miner.id} didn't find any asteroids to mine ({category}). Remaining IDLE.")
+            logger.debug(
+                f"Miner {miner.id} didn't find any asteroids to mine ({category}). Remaining IDLE."
+            )
             miner.set_target(None)
             miner.set_state(ShipState.IDLE)
             miner.set_resource_to_mine(None)
@@ -320,8 +329,8 @@ class MinerAdmiral(Admiral):
         self, miner: MiningShip, category: str, asteroids: list[Asteroid]
     ) -> tuple[Asteroid | None, ResourceType | None]:  # Return target and resource_to_mine
         """Helper to find the best asteroid target for a given category."""
-        target_asteroid : Asteroid | None = None
-        resource_to_mine : ResourceType | None = None
+        target_asteroid: Asteroid | None = None
+        resource_to_mine: ResourceType | None = None
 
         if category == self.free_ship_category:
             # Choose a *resource type* to target for this cycle
@@ -345,7 +354,7 @@ class MinerAdmiral(Admiral):
                 resource_to_mine = convert_resource_type_to_enum(category)
             # If no target found, target and resource_to_mine remain None
         else:
-            print(f"WARN: Invalid category {category} for asteroid assignment.")
+            logger.warning(f"Invalid category {category} for asteroid assignment.")
             # target and resource_to_mine remain None
 
         return target_asteroid, resource_to_mine
@@ -359,7 +368,7 @@ class MinerAdmiral(Admiral):
         try:
             resource_type = convert_resource_type_to_enum(resource_type)
         except ValueError:
-            print(f"WARN: Invalid resource type: {resource_type}")
+            logger.warning(f"Invalid resource type: {resource_type}")
             return None
 
         def resource_filter(asteroid):

@@ -1,5 +1,6 @@
 from ...enums import ShipState
 from typing import TYPE_CHECKING
+from ...logger import logger # Import the logger
 
 if TYPE_CHECKING:
     from ...entities.ships.base_ship import Ship
@@ -40,14 +41,14 @@ class Admiral:
     def remove_ship(self, ship_id: int):
         """Removes a ship by ID. Raises ShipNotFoundError if not found."""
         if ship_id not in self.ships:
-            print(f"WARN: Attempted to remove non-existent ship {ship_id} from Admiral.")
+            logger.warning(f"Attempted to remove non-existent ship {ship_id} from Admiral {self.__class__.__name__}.")
             raise ShipNotFoundError(f"Ship {ship_id} not found in this Admiral's fleet.")
         del self.ships[ship_id]
 
     def issue_command_checks(self, ship: "Ship", accepted_states: list[ShipState] = None):
         """Check if the ship is in an accepted state before issuing a command."""
         if accepted_states is not None and ship.state not in accepted_states:
-            print(f"DEBUG: {ship.type} {ship.id} is in state {ship.state}, not in accepted states. Skipping command.")
+            logger.debug(f"{ship.type} {ship.id} is in state {ship.state}, not in accepted states {accepted_states}. Skipping command.")
             return False
         return True
 
@@ -62,13 +63,13 @@ class Admiral:
             case ShipState.RETURNING_TO_BASE:
                 self.issue_refueling_command(ship)
             case ShipState.REFUELING:
-                print(f"DEBUG: Refueling finished ({ship.fuel}/{ship.fuel_max_capacity}), going IDLE for {ship.type} {ship.id}")
+                logger.debug(f"Refueling finished ({ship.fuel}/{ship.fuel_max_capacity}), going IDLE for {ship.type} {ship.id}")
                 ship.set_state(ShipState.IDLE)
                 ship.set_target(None)
             case _:
-                # This should never happen
-                print(
-                    f"WARN: {ship.type} {ship.id} is in state {ship.state}, command issued. This should never happen!"
+                # This should ideally not happen if states are managed correctly
+                logger.warning(
+                    f"{ship.type} {ship.id} is in state {ship.state}, command issued from base admiral. This might indicate an unhandled state."
                 )
                 ship.set_state(ShipState.IDLE)
                 ship.set_target(None)
@@ -77,16 +78,16 @@ class Admiral:
         """Issue a refueling command to a ship."""
         # ---- Checks ----
         if ship.home is None:
-            print(f"ERROR: {ship.type} {ship.id} has no home planet set. This should never happen!")
+            logger.error(f"{ship.type} {ship.id} has no home planet set. This should never happen!")
             return
-        if ship.target != ship.home:
-            print(f"ERROR: {ship.type} {ship.id} is not returning to base. This should never happen!")
+        if ship.target != ship.home: # This check might be redundant if RETURNING_TO_BASE always sets target to home
+            logger.error(f"{ship.type} {ship.id} is not targeting home for refueling. Target: {ship.target}. This should never happen!")
             return
         
         # ---- Logic ----
-        print(f"DEBUG: Issue refueling command for {ship.type} {ship.id}")
+        logger.debug(f"Issue refueling command for {ship.type} {ship.id}")
         if ship.fuel >= ship.fuel_max_capacity:
-            print(f"WARNING: Ship {ship.id} is already at max fuel! Going IDLE.")
+            logger.warning(f"Ship {ship.id} is already at max fuel! Going IDLE.")
             ship.set_state(ShipState.IDLE)
             ship.set_target(None)
             return
@@ -95,8 +96,8 @@ class Admiral:
 
     def issue_command_to_idle_ship(self, ship: "Ship"):
         """Assign a task to a ship."""
-        print(
-            f"ERROR: This function ({self.__class__.__name__}.issue_command_to_idle_ship) should be never used! "
+        logger.error(
+            f"Base function ({self.__class__.__name__}.issue_command_to_idle_ship) should never be used for {ship.type} {ship.id}! "
             f"It is done in different functions of subclasses that are called in fleet.give_orders."
         )
         pass

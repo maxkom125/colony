@@ -9,6 +9,7 @@ from ..asteroid import Asteroid
 from ..planet import Planet
 from ...systems.movement_system import update_ship_movement
 from typing import TYPE_CHECKING
+from ...logger import logger  # Import the logger
 
 if TYPE_CHECKING:
     from ...systems.admirals.base_admiral import Admiral
@@ -52,10 +53,10 @@ class Ship(Entity):
         # Cargo - relevant for mining/transport ships
         self.cargo_capacity = 0
         self.fuel_max_capacity = constants.BASE_FUEL_MAX_CAPACITY
-        if 'fuel' not in kwargs:
+        if "fuel" not in kwargs:
             self.fuel = 0
         else:
-            self.fuel = kwargs['fuel']
+            self.fuel = kwargs["fuel"]
         self.fuel_consumption_rate = constants.BASE_FUEL_CONSUMPTION_RATE
         self.cargo = {res_type: 0 for res_type in ResourceType.list()}  # Use enum list here
 
@@ -78,7 +79,7 @@ class Ship(Entity):
     def burn_fuel(self, distance: float):
         """Burn fuel amount corresponding to cover distance"""
         if distance <= 0:
-            print("DEBUG: Burn no fuel: distance is 0!")
+            logger.debug(f"{self.type} {self.id}: Burn no fuel: distance is 0!")
             return
 
         fuel_to_burn = self.fuel_consumption_rate * distance
@@ -101,48 +102,55 @@ class Ship(Entity):
             return  # Not in a state for fuel refill
         # Check if we need to refuel in other states
         if self.fuel >= self.fuel_max_capacity and self.state != ShipState.REFUELING:
-            print(f"DEBUG: {self.type} {self.id} already at max fuel, in {self.state}. Skipping refueling.")
+            logger.debug(
+                f"{self.type} {self.id} already at max fuel, in {self.state}. Skipping refueling."
+            )
             return  # Already at max fuel, nothing to do
-        
+
         if self.admiral is None:
-            print(f"ERROR: {self.type} {self.id} has no admiral! This should never happen!")
+            logger.error(f"{self.type} {self.id} has no admiral! This should never happen!")
             return
 
         # Check if target is a Planet
         if type(self.target) is not Planet:
-            print(f"ERROR: {self.type} {self.id} tried to refuel from a non-planet ({self.target.id}). This should never happen!")
+            logger.error(
+                f"{self.type} {self.id} tried to refuel from a non-planet ({self.target.id}). This should never happen!"
+            )
             _issue_command_refueling_context()
             return  # Not a planet, nothing to refill from
 
         # Check if target is the home planet
         if self.target != self.home:
-            print(
-                f"ERROR: {self.type} {self.id} is refilling from a non-home planet ({self.target.id}). This should never happen!"
+            logger.error(
+                f"{self.type} {self.id} is refilling from a non-home planet ({self.target.id}). This should never happen!"
             )
             _issue_command_refueling_context()
             return
 
         if not hasattr(self.target, "storage"):
             # TODO: add function name ref: logging %(funcName)
-            print(
-                f"ERROR: refill target {type(self.target)} has no storage attribute!"
-            )
+            logger.error(f"Refill target {type(self.target)} has no storage attribute!")
             _issue_command_refueling_context()
             return
 
         # Check if the planet has plasma to spare
         if self.target.storage.get(ResourceType.PLASMA, 0) <= 0:
-            print(f"WARNING: {self.type} {self.id} is refilling from a planet with no plasma to spare: {self.target.storage}")
+            logger.warning(
+                f"{self.type} {self.id} is refilling from a planet with no plasma to spare: {self.target.storage}"
+            )
             _issue_command_refueling_context()
             return  # No plasma to spare, nothing to do # TODO: hud notification
 
         # --- Refill Logic ---
         fuel_needed = self.fuel_max_capacity - self.fuel
         if fuel_needed <= constants.EPSILON:
-            _issue_command_refueling_context() # Refilling finished or not needed
+            _issue_command_refueling_context()  # Refilling finished or not needed
             return
 
-        max_available = self.target.storage.get(ResourceType.PLASMA, 0) * constants.PLASMA_TO_FUEL_CONVERSION_RATE
+        max_available = (
+            self.target.storage.get(ResourceType.PLASMA, 0)
+            * constants.PLASMA_TO_FUEL_CONVERSION_RATE
+        )
         can_take = min(fuel_needed, max_available)
 
         potential_refill_amount = constants.BASE_FUEL_REFILL_RATE * dt
@@ -150,10 +158,14 @@ class Ship(Entity):
         # --- Check if this refill will reach max fuel capacity
         if actual_refilled > 0:
             self.fuel += actual_refilled
-            self.target.storage[ResourceType.PLASMA] -= actual_refilled / constants.PLASMA_TO_FUEL_CONVERSION_RATE
+            self.target.storage[ResourceType.PLASMA] -= (
+                actual_refilled / constants.PLASMA_TO_FUEL_CONVERSION_RATE
+            )
             # TODO: refueling timer (like mining_timer)
         else:
-            print(f"ERROR: {self.type} {self.id} refilled 0 fuel. This should never happen!")
+            logger.error(
+                f"{self.type} {self.id} refilled 0 fuel. Fuel needed: {fuel_needed}, Max available: {max_available}, Potential: {potential_refill_amount}, Can take: {can_take}. This might indicate an issue."
+            )
             _issue_command_refueling_context()
 
     def update_movement(self, dt: float, obstacles: list[Asteroid | Planet]):
@@ -176,21 +188,21 @@ class Ship(Entity):
             if self.admiral:
                 self.admiral.issue_command(self)
             else:
-                print(f"ERROR: {self.type} {self.id} has no admiral, cannot issue arrival command.")
+                logger.error(f"{self.type} {self.id} has no admiral, cannot issue arrival command.")
                 return
 
     def get_arrival_threshold(self):
         if self.target and hasattr(self.target, "radius"):
             return self.radius + self.target.radius + constants.ARRIVAL_DISTANCE_BUFFER
         else:
-            print(
-                f"WARN: {self.type} {self.id} has no target (or something wrong with target), returning 0 arrival threshold."
+            logger.warning(
+                f"{self.type} {self.id} has no target (or target missing radius), returning 0 arrival threshold. Target: {self.target}"
             )
             return 0
 
     def handle_arrival(self):
         """DEPRECATED."""
-        print("DEPRECATED: handle_arrival is deprecated")
+        logger.warning("DEPRECATED: handle_arrival is deprecated")
 
     def set_state(self, new_state: ShipState):
         """Sets the ship's state and resets any relevant timers."""

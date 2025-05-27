@@ -1,9 +1,23 @@
 import pygame
 import sys
+import argparse
+import os
+
+
+# Parse command line arguments first, before any other imports
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Colony Space Game")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    return parser.parse_args()
+
+
+# Parse arguments and set environment variable if needed
+args = parse_arguments()
+if args.debug:
+    os.environ["GAME_DEBUG"] = "1"
 
 # Adjust imports for new structure
 from src import constants
-from src.enums import ResourceType
 import random  # Import random module
 import math  # Import math for trigonometric functions
 from pygame.math import Vector2  # Import Vector2
@@ -28,8 +42,14 @@ from src.ui.hud_manager import HUDManager
 from src.systems.space_market import SpaceMarket
 from src.systems.research_system import ResearchSystem
 
+# Import logger and setup function
+from src.logger import logger, setup_logging
+
 
 def main():
+    # Initialize logging as the first step
+    setup_logging()
+
     # global camera_offset, zoom_level  # REMOVED Globals
 
     # Initialize Pygame
@@ -38,7 +58,7 @@ def main():
     try:
         ui_font = pygame.font.SysFont(None, constants.UI_FONT_SIZE)
     except Exception as e:
-        print(f"Error initializing font: {e}")
+        logger.error(f"Error initializing font: {e}")
         ui_font = pygame.font.Font(None, 30)  # Fallback basic font
 
     # Screen setup
@@ -47,11 +67,11 @@ def main():
         # screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)  # Try fullscreen
         # Update constants with actual screen size if fullscreen is used
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = screen.get_size()
-        print(f"Screen size set to: {constants.SCREEN_WIDTH}x{constants.SCREEN_HEIGHT}")
+        logger.info(f"Screen size set to: {constants.SCREEN_WIDTH}x{constants.SCREEN_HEIGHT}")
         # Recalculate constants dependent on the new screen size
         constants.calculate_dependent_constants()
     except pygame.error as e:
-        print(f"Error setting display mode: {e}. Falling back to windowed.")
+        logger.error(f"Error setting display mode: {e}. Falling back to windowed.")
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = 1280, 720  # Default fallback
         screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
         # Also recalculate if falling back to windowed mode
@@ -104,7 +124,9 @@ def main():
                 )
             )
     if len(asteroids) < constants.ASTEROID_COUNT:
-        print(f"WARNING: Generated {len(asteroids)} asteroids...")
+        logger.warning(
+            f"Generated {len(asteroids)} asteroids, expected {constants.ASTEROID_COUNT}."
+        )
 
     # Create background stars (Generate positions in world coordinates)
     stars = []
@@ -273,14 +295,14 @@ def main():
                                                 success = False
 
                                             if success:
-                                                print(
+                                                logger.info(
                                                     f"Market: {action} {amount} {resource_type.value} successful."
                                                 )
                                                 # Optionally reset slider after confirm?
                                                 # hud_manager.market_slider_values[resource_type] = 0.0
                                                 # hud_manager._update_trade_details(resource_type, central_planet, space_market)
                                             else:
-                                                print(
+                                                logger.warning(
                                                     f"Market: {action} {amount} {resource_type.value} FAILED."
                                                 )
 
@@ -298,16 +320,26 @@ def main():
                                     hud_manager.research_modal_ship_type = None
                                     clicked_on_ui = True
                                 # Research buttons (modal only)
-                                button_rects = getattr(hud_manager, "research_modal_button_rects", {})
+                                button_rects = getattr(
+                                    hud_manager, "research_modal_button_rects", {}
+                                )
                                 ship_type = hud_manager.research_modal_ship_type
                                 for (stype, key), btn_rect in button_rects.items():
-                                    if stype == ship_type and btn_rect and btn_rect.collidepoint(event.pos):
+                                    if (
+                                        stype == ship_type
+                                        and btn_rect
+                                        and btn_rect.collidepoint(event.pos)
+                                    ):
                                         if research_system.attempt_research_purchase(
                                             key, ship_type, central_planet.storage, fleet
                                         ):
-                                            print(f"Research: {ship_type} {key} upgraded!")
+                                            logger.info(
+                                                f"Research: {ship_type.value} {key} upgraded!"
+                                            )
                                         else:
-                                            print(f"Research: {ship_type} {key} upgrade FAILED.")
+                                            logger.warning(
+                                                f"Research: {ship_type.value} {key} upgrade FAILED."
+                                            )
                                         clicked_on_ui = True
                                         break
                                 if clicked_on_ui:
@@ -363,7 +395,7 @@ def main():
                         for i, rect in current_speed_buttons.items():
                             if rect.collidepoint(event.pos):
                                 current_speed_index = i
-                                print(
+                                logger.info(
                                     f"Game speed set to {constants.GAME_SPEED_MULTIPLIERS[current_speed_index]}x"
                                 )
                                 clicked_on_ui = True

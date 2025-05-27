@@ -1,5 +1,5 @@
 # src/fleet.py
-from .entities import Ship
+from .entities.ships.base_ship import Ship
 from .entities.ships.mining_ship import MiningShip
 from .entities.ships.scanner_ship import ScannerShip
 from .entities.asteroid import Asteroid
@@ -7,6 +7,7 @@ from .entities.planet import Planet
 from .systems.admirals.miner_admiral import MinerAdmiral
 from .systems.admirals.scanner_admiral import ScannerAdmiral
 from .enums import ShipType
+from .logger import logger  # Import the logger
 
 
 class Fleet:
@@ -20,7 +21,7 @@ class Fleet:
     def add_ship(self, ship: Ship):
         """Registers a ship in the central fleet registry and assigns to admiral."""
         if ship.id in self.ships:
-            print(f"WARN: Ship with ID {ship.id} already exists in Fleet registry.")
+            logger.warning(f"Ship with ID {ship.id} already exists in Fleet registry.")
             return
         self.ships[ship.id] = ship
         if isinstance(ship, MiningShip):
@@ -28,7 +29,9 @@ class Fleet:
         elif isinstance(ship, ScannerShip):
             self.scanner_admiral.add_ship(ship)
         else:
-            print(f"WARN: Ship type {type(ship).__name__} has no dedicated admiral.")
+            logger.warning(
+                f"Ship type {type(ship).__name__} has no dedicated admiral for ship ID {ship.id}."
+            )
 
     def remove_ship(self, ship_id: int):
         """Removes a ship from the central fleet registry and relevant admiral."""
@@ -37,7 +40,7 @@ class Fleet:
             del self.ships[ship_id]
             ship_found_in_fleet = True
         else:
-            print(f"WARN: Ship with ID {ship_id} not found in Fleet registry for removal.")
+            logger.warning(f"Ship with ID {ship_id} not found in Fleet registry for removal.")
             return
 
         if ship_id in self.miner_admiral.ships:
@@ -45,8 +48,8 @@ class Fleet:
         elif ship_id in self.scanner_admiral.ships:
             self.scanner_admiral.remove_ship(ship_id)
         elif not ship_found_in_fleet:
-            print(
-                f"WARN: Ship {ship_id} not in main Fleet but "
+            logger.warning(
+                f"Ship {ship_id} not in main Fleet but "
                 f"attempting admiral removal check. This should never happen!"
             )
             if ship_id in self.miner_admiral.ships:
