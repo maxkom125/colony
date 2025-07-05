@@ -189,3 +189,4 @@
 # TODO: click on Random + button unassigns a ship from category with the most ships
 # TODO: fix alignment in research tab
 # TODO: ADD mining ship return to base to refill logic like in scanner
+# TODO: ADD fuel capacity, refill speed and consumption research

@@ -9,7 +9,7 @@ from ..logger import logger # Import the logger
 
 class Planet(Entity):
     """Represents the player's home base."""
-    def __init__(self, position: Vector2, radius: int | None = None, color: tuple | None = None, entity_id: int | None = None):
+    def __init__(self, position: Vector2, radius: int | None = None, color: tuple[int, int, int] | None = None, entity_id: int | None = None):
         # Use constants for radius and color
         if radius is None:
             radius = constants.PLANET_RADIUS
@@ -20,17 +20,15 @@ class Planet(Entity):
 
         # Storage for resources dumped by miners
         self.storage = {res_type: 0 for res_type in ResourceType.list()}
-        # Add starting resources if needed
-        # self.storage["Tritanium"] = 200 # Example
 
-    def has_resources(self, resource_dict: dict) -> bool:
+    def has_resources(self, resource_dict: dict[ResourceType, int]) -> bool:
         """Checks if the planet has enough of the specified resources."""
         for resource_type, amount_needed in resource_dict.items():
             if self.storage.get(resource_type, 0) < amount_needed:
                 return False
         return True
 
-    def remove_resources(self, resource_dict: dict) -> bool:
+    def remove_resources(self, resource_dict: dict[ResourceType, int]) -> bool:
         """Removes the specified resources from storage.
 
         Returns True if successful (all resources were present in sufficient
@@ -48,7 +46,7 @@ class Planet(Entity):
             logger.info(f"Removed {amount_to_remove} {resource_type}. New total: {self.storage[resource_type]}")
         return True
 
-    def add_resources(self, resources_to_add: dict):
+    def add_resources(self, resources_to_add: dict[ResourceType, int]):
         """Adds resources to the planet's storage."""
         for resource_type, amount in resources_to_add.items():
             if resource_type in self.storage:

@@ -33,7 +33,14 @@ class Camera:
             return
 
         old_zoom = self.zoom
-        world_mouse_pos_before = self.screen_to_world(screen_mouse_pos)
+        
+        # For zoom out, use screen center; for zoom in, use mouse position
+        if zoom_direction < 0:  # Zooming out - use screen center
+            zoom_point = Vector2(constants.SCREEN_WIDTH / 2, constants.SCREEN_HEIGHT / 2)
+        else:  # Zooming in - use mouse position
+            zoom_point = screen_mouse_pos
+            
+        world_zoom_pos_before = self.screen_to_world(zoom_point)
 
         # Apply zoom change
         if zoom_direction > 0:
@@ -45,9 +52,9 @@ class Camera:
         if abs(self.zoom - old_zoom) < constants.EPSILON:
             return
 
-        # Adjust offset to keep world mouse position fixed
-        world_mouse_pos_after = self.screen_to_world(screen_mouse_pos)
-        self.offset += world_mouse_pos_before - world_mouse_pos_after
+        # Adjust offset to keep world zoom position fixed
+        world_zoom_pos_after = self.screen_to_world(zoom_point)
+        self.offset += world_zoom_pos_before - world_zoom_pos_after
 
     def handle_pan(self, screen_delta: Vector2):
         """Updates camera offset based on screen drag delta."""

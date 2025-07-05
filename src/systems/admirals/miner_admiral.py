@@ -255,6 +255,9 @@ class MinerAdmiral(Admiral):
             logger.error(
                 f"Miner {ship.id} cannot mine Asteroid {ship.target.id} because it has no {assigned_category}. This should never happen!"
             )
+            ship.set_state(ShipState.IDLE)
+            ship.set_target(None)
+            ship.set_resource_to_mine(None)
             return
         # ---- Mining ----
         ship.set_state(ShipState.MINING)

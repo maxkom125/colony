@@ -193,9 +193,9 @@ class HUDManager:
     ):
         """Calculates the trade action, amount, and cost/gain based on the slider value."""
         value = self.market_slider_values[resource]
-        resource_str = resource.value
-        available_amount = planet.storage.get(resource_str, 0)
-        available_credits = planet.storage.get(ResourceType.CREDITS.value, 0)
+        # Fix: Use ResourceType enum objects as keys, not string values
+        available_amount = planet.storage.get(resource, 0)
+        available_credits = planet.storage.get(ResourceType.CREDITS, 0)
 
         if value < 0:  # Selling
             action = "Sell"
@@ -673,7 +673,7 @@ class HUDManager:
             slider_value = self.market_slider_values[resource]
 
             # Resource Info (Name, Have)
-            have_amount = int(planet.storage.get(resource_str, 0))
+            have_amount = int(planet.storage.get(resource, 0))
             info_text = f"{resource_str} (Have: {have_amount})"
             color = (
                 constants.TRITANIUM_COLOR

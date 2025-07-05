@@ -3,3 +3,5 @@
 .coverage
 launch.json
 settings.json
+.DS_Store
+logs/*

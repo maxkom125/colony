@@ -16,8 +16,8 @@ BLUE = (0, 0, 255)
 BACKGROUND_COLOR = (0, 0, 20)  # ADDED BACK
 
 # Camera settings
-MIN_ZOOM = 0.5  # Example minimum zoom
-MAX_ZOOM = 3.0  # Example maximum zoom
+MIN_ZOOM = 0.2
+MAX_ZOOM = 10.0
 
 # Planet Constants
 PLANET_RADIUS = 150
@@ -53,7 +53,7 @@ MINER_SPEED = 80.0  # Miner specific speed
 BASE_FUEL_REFILL_RATE = 2
 BASE_FUEL_CONSUMPTION_RATE = 0.01
 BASE_FUEL_MAX_CAPACITY = 100
-PLASMA_TO_FUEL_CONVERSION_RATE = 0.2
+PLASMA_TO_FUEL_CONVERSION_RATE = 1
 NO_FUEL_MULTIPLIER = 0.1
 
 # Visited Asteroid Color

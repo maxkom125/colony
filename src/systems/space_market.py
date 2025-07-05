@@ -2,6 +2,7 @@ from .. import constants
 from ..enums import ResourceType
 from typing import Dict
 from ..logger import logger # Import the logger
+from ..entities.planet import Planet
 
 
 class SpaceMarket:
@@ -12,11 +13,11 @@ class SpaceMarket:
         self.fee_percent = constants.CONVERSION_FEE_PERCENT
 
         # --- Base Rates (Loaded from constants) ---
-        self.base_sell_rates: Dict[ResourceType, float] = {
+        self.base_sell_rates: dict[ResourceType, float] = {
             ResourceType.TRITANIUM: constants.SELL_TRITANIUM_RATE,
             ResourceType.PLASMA: constants.SELL_PLASMA_RATE,
         }
-        self.base_buy_rates: Dict[ResourceType, float] = {
+        self.base_buy_rates: dict[ResourceType, float] = {
             ResourceType.TRITANIUM: constants.BUY_TRITANIUM_RATE,
             ResourceType.PLASMA: constants.BUY_PLASMA_RATE,
         }
@@ -27,25 +28,23 @@ class SpaceMarket:
 
     def _attempt_transaction(
         self,
-        storage: Dict[str, float],
+        storage: dict[ResourceType, float],
         res_decrease: ResourceType,
         amount_decrease: float,
         res_increase: ResourceType,
         amount_increase: float,
     ) -> bool:
         """Checks funds and updates storage if transaction is possible."""
-        decrease_key = res_decrease.value
-        increase_key = res_increase.value
-        available_amount = storage.get(decrease_key, 0)
+        available_amount = storage.get(res_decrease, 0)
 
         if available_amount < amount_decrease:
             logger.warning(
-                f"Not enough {decrease_key} to perform transaction. Need {amount_decrease:.2f}, have {available_amount:.2f}"
+                f"Not enough {res_decrease} to perform transaction. Need {amount_decrease:.2f}, have {available_amount:.2f}"
             )
             return False
 
-        storage[decrease_key] -= amount_decrease
-        storage[increase_key] = storage.get(increase_key, 0) + amount_increase
+        storage[res_decrease] -= amount_decrease
+        storage[res_increase] += amount_increase
         return True
 
     def _buy_sell_checks(

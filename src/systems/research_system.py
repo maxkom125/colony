@@ -47,7 +47,7 @@ class ResearchSystem:
                 "description": "Increases miner fuel tank capacity by 25% per level.",
             },
             "fuel_consumption_rate": {
-                "display_name": "Miner Fuel Efficiency",
+                "display_name": "Miner Fuel Consumption",
                 "max_level": 5,
                 "base_cost": {ResourceType.CREDITS: 200, ResourceType.PLASMA: 100},
                 "cost_multiplier": 2.2,
@@ -97,7 +97,7 @@ class ResearchSystem:
                 "description": "Increases scanner fuel tank capacity by 25% per level.",
             },
             "fuel_consumption_rate": {
-                "display_name": "Scanner Fuel Efficiency",
+                "display_name": "Scanner Fuel Consumption",
                 "max_level": 5,
                 "base_cost": {ResourceType.CREDITS: 200, ResourceType.PLASMA: 100},
                 "cost_multiplier": 2.2,

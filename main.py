@@ -64,9 +64,15 @@ def main():
 
     # Screen setup
     try:
-        screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
-        # screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)  # Try fullscreen
-        # Update constants with actual screen size if fullscreen is used
+        # Use fullscreen unless in debug mode
+        if os.environ.get("GAME_DEBUG"):
+            # Debug mode: use windowed mode for easier development
+            screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
+        else:
+            # Production mode: use fullscreen
+            screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+
+        # Update constants with actual screen size
         constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT = screen.get_size()
         logger.info(f"Screen size set to: {constants.SCREEN_WIDTH}x{constants.SCREEN_HEIGHT}")
         # Recalculate constants dependent on the new screen size
